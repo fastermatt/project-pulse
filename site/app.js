@@ -12,6 +12,7 @@
   let curTab = "overview";
   let appQuery = "", linkQuery = "", checkFilter = "all";
   let appFilter = "all";
+  let appSort = "status";
   let password = null;
 
   // ---------- Theme: follows the system, the toggle overrides ----------
@@ -23,6 +24,26 @@
     root.dataset.theme = dark ? "light" : "dark";
     try { localStorage.setItem("pulse-theme", root.dataset.theme); } catch {}
   });
+
+  // ---------- Glass segmented controls: one selected "lens" pill slides between segments ----------
+  const SEG_SEL = '[aria-selected="true"],[aria-pressed="true"],[aria-current="page"]';
+  const segRO = typeof ResizeObserver !== "undefined" ? new ResizeObserver((es) => es.forEach((e) => segSync(e.target))) : null;
+  function segSync(seg) {
+    if (!seg || !seg.isConnected) return;
+    if (segRO && !seg._ro) { seg._ro = true; segRO.observe(seg); }
+    let ind = seg.querySelector(":scope > .seg-ind");
+    const on = seg.querySelector(`:scope > ${SEG_SEL.split(",").join(", :scope > ")}`);
+    if (!on || !seg.offsetWidth || !on.offsetWidth) { if (ind) ind.style.opacity = "0"; return; }
+    const pos = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight };
+    const place = (q) => { ind.style.width = q.w + "px"; ind.style.height = q.h + "px"; ind.style.transform = `translate(${q.x}px, ${q.y}px)`; };
+    if (!ind) {
+      ind = document.createElement("i"); ind.className = "seg-ind"; ind.setAttribute("aria-hidden", "true");
+      ind.style.transition = "none"; place(seg._pos || pos); seg.prepend(ind);
+      void ind.offsetWidth; ind.style.transition = "";
+    }
+    ind.style.opacity = "1"; place(pos); seg._pos = pos;
+  }
+  const syncSegs = () => document.querySelectorAll(".seg, .bbar").forEach(segSync);
 
   // ---------- One status helper: good / mid / bad / none ----------
   // uptime % >=99.5 good, >=97 mid; response ms <800 good, <2000 mid; usage % <70 good, <90 mid.
@@ -61,6 +82,8 @@
   const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const nf = (n) => Number(n || 0).toLocaleString();
   const lower = (x) => String(x || "").toLowerCase();
+  const fmtDate = (iso) => { const t = iso ? new Date(iso) : null; return t && !Number.isNaN(+t) ? t.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "n/a"; };
+  const fmtDateTime = (iso) => { const t = iso ? new Date(iso) : null; return t && !Number.isNaN(+t) ? `${fmtDate(iso)}, ${t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "n/a"; };
 
   const fmtBytes = (b) => {
     if (b == null) return "n/a";
@@ -231,6 +254,14 @@
     return k || orig;
   }
   const titleCase = (k) => k.split("-").filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") || k;
+  const SUFFIX_I = /-(v\d+|prod|production|deploy|app|web|site)$/i;
+  // Display title from a component's current name: drop deploy suffixes, split on dashes, capitalise lowercase words.
+  function humanize(name) {
+    const raw = String(name || "").trim();
+    let k = raw.replace(/[\s_]+/g, "-"), prev;
+    do { prev = k; k = k.replace(SUFFIX_I, ""); } while (k !== prev);
+    return (k || raw).split("-").filter(Boolean).map((w) => (w === w.toLowerCase() ? w[0].toUpperCase() + w.slice(1) : w)).join(" ") || raw;
+  }
   const isPlatformHost = (u) => /\.(netlify|vercel)\.app$/i.test(hostOf(u));
   const COMP_ORDER = { vercel: 0, netlify: 1, custom: 2, supabase: 3, github: 4 };
   const DAY = 86400000;
@@ -315,6 +346,11 @@
       const lastDeployAny = deployTimes.at(-1) || null;
       const lastPush = g.repos.map((r) => r.pushedAt).filter(Boolean).sort().at(-1) || null;
       const newest = Math.max(lastDeployAny ? +new Date(lastDeployAny) : 0, lastPush ? +new Date(lastPush) : 0);
+      // Last updated: newest of any component deploy and any repo push.
+      const anyDeploy = comps.map((c) => c.site?.deploy?.at).filter((t) => t && !Number.isNaN(+new Date(t))).sort((a, b) => +new Date(a) - +new Date(b)).at(-1) || null;
+      const dMs = anyDeploy ? +new Date(anyDeploy) : 0, pMs = lastPush ? +new Date(lastPush) : 0;
+      const updatedAt = dMs || pMs ? (pMs > dMs ? lastPush : anyDeploy) : null;
+      const updatedSource = updatedAt ? (pMs > dMs ? "push" : "deploy") : null;
       if (newest && Date.now() - newest > 180 * DAY) issues.push({ sev: "info", kind: "stale", comp: null, text: "Stale: no deploys or pushes in 6+ months" });
       if (!webChecked.length && !dbs.length && g.hpOnly) issues.push({ sev: "info", kind: "unmonitored", comp: null, text: "Not monitored (no deploy checks)" });
       issues.sort((a, b) => SEV[b.sev] - SEV[a.sev]);
@@ -328,11 +364,12 @@
       const msOk = ser.filter((p) => p && p.ms != null && p.state !== "down" && p.ms > 0).map((p) => p.ms);
 
       const names = [...new Set([...comps.map((c) => c.name)])];
+      const titleSrc = (primary || web[0] || comps[0])?.name;
       apps.push({
-        key: g.key, name: g.title || titleCase(g.key), names, comps, issues, health,
+        key: g.key, name: g.title || (titleSrc ? humanize(titleSrc) : titleCase(g.key)), names, comps, issues, health,
         live, liveIsHomepage: live === g.homepage && !primary?.url, dashboardFallback: fallbackDash, primary,
         histIds: histComps.map((c) => c.site.id), pct: hist.pct, ticks: hist.ticks, series: ser, avgMs: msOk.length ? Math.round(msOk.reduce((a, b) => a + b, 0) / msOk.length) : null,
-        lastDeploy, lastDeployAny, lastPush, failedDeploy: !lastDeploy && !!lastDeployAny,
+        lastDeploy, lastDeployAny, lastPush, updatedAt, updatedSource, failedDeploy: !lastDeploy && !!lastDeployAny,
         pausedOnly: health === "info" && issues.every((i) => i.kind === "paused" || i.kind === "dbstate"),
       });
     }
@@ -497,10 +534,11 @@
       const href = safeUrl(a.live) || safeUrl(a.dashboardFallback);
       return `<div class="mx-row"><button type="button" class="mx-name" data-jump="${esc(a.id)}" title="${esc(a.names.join(" · "))}">${sdot(hs)}<span>${esc(a.name)}</span></button><div class="mx-cells">${cells}</div>
         <b class="mx-up num st-${rate("uptime", a.pct)}"><span class="t">${fmtPct(a.pct)}</span></b><span class="mx-ms num st-${rate("ms", a.avgMs)}"><span class="t">${a.avgMs != null ? a.avgMs + " ms" : "n/a"}</span></span>
+        <span class="mx-upd num" title="${esc(updTip(a))}">${esc(fmtDate(a.updatedAt))}</span>
         ${href ? `<a class="mx-open" href="${esc(href)}" target="_blank" rel="noopener">Open${EXT}<span class="sr"> ${esc(a.name)}</span></a>` : `<span></span>`}</div>`;
     }).join("");
     $("#p-matrix").innerHTML = pnh("grid", "Status matrix", legend, `last ${N} runs`) +
-      `<div class="mx"><div class="mx-row mx-head" aria-hidden="true"><span>App</span><span class="mx-axis"><span>${N} runs ago</span><span>latest</span></span><span class="r">Uptime</span><span class="r">Avg</span><span></span></div>${rows}</div>`;
+      `<div class="mx"><div class="mx-row mx-head" aria-hidden="true"><span>App</span><span class="mx-axis"><span>${N} runs ago</span><span>latest</span></span><span class="r">Uptime</span><span class="r">Avg</span><span class="r">Updated</span><span></span></div>${rows}</div>`;
   }
 
   // ---------- Response time ----------
@@ -651,6 +689,7 @@
     const last = pts[pts.length - 1];
     return `<svg class="mspark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${pts.length > 1 ? `<polyline points="${pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}"/>` : ""}<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2"/></svg>`;
   }
+  const updTip = (a) => `Last deploy: ${a.lastDeployAny ? fmtDateTime(a.lastDeployAny) : "n/a"}\nLast push: ${a.lastPush ? fmtDateTime(a.lastPush) : "n/a"}`;
   function appRow(a) {
     const live = safeUrl(a.live), href = live || safeUrl(a.dashboardFallback);
     const host = live ? hostOf(live) : a.comps.some((c) => c.kind === "supabase") ? "Database only" : "No live site";
@@ -663,8 +702,8 @@
       return link ? `<a class="pchip" href="${esc(link)}" target="_blank" rel="noopener" title="${esc(compTip(c))}">${inner}</a>` : `<span class="pchip" title="${esc(compTip(c))}">${inner}</span>`;
     }).join("");
     const dc = a.comps.filter((c) => WEB.has(c.kind) && c.site?.deploy?.at).sort((x, y) => String(y.site.deploy.at).localeCompare(String(x.site.deploy.at)))[0];
-    const dst = dc ? rate("deploy", dc.site.deploy.state) : "none";
-    const deployTxt = a.lastDeploy ? ago(a.lastDeploy) : a.failedDeploy ? `Failed ${ago(a.lastDeployAny)}` : "n/a";
+    const failed = a.updatedSource === "deploy" && dc && dc.site.deploy.state === "error" && dc.site.deploy.at === a.updatedAt;
+    const updSub = a.updatedAt ? `${failed ? "Deploy failed" : a.updatedSource === "deploy" ? "Deployed" : "Pushed"} ${ago(a.updatedAt)}` : "";
     const stateWord = pillOf(a);
     return `<tr id="${a.id}" tabindex="-1" data-name="${esc(a.names.join(" ").toLowerCase() + " " + a.key)}">
       <td class="c-st" data-l="Status"><span class="stc">${sdot(hs)}${stateWord}</span></td>
@@ -672,27 +711,36 @@
       <td class="c-plat"><div class="pchips">${chips}</div></td>
       <td class="c-up r" data-l="Uptime"><b class="num st-${rate("uptime", a.pct)}"><span class="t">${fmtPct(a.pct)}</span></b></td>
       <td class="c-resp" data-l="Response"><span class="resp st-${rate("ms", a.avgMs)}"><b class="num t">${a.avgMs != null ? a.avgMs + " ms" : "n/a"}</b>${miniSpark(a)}</span></td>
-      <td class="c-deploy" data-l="Deploy"><span class="num st-${dst}">${dc ? sdot(dst) : ""}${esc(deployTxt)}</span></td>
-      <td class="c-push" data-l="Push"><span class="num">${a.lastPush ? esc(ago(a.lastPush)) : "n/a"}</span></td>
+      <td class="c-upd" data-l="Last updated" title="${esc(updTip(a))}"><div class="upd num"><b>${esc(fmtDate(a.updatedAt))}</b>${updSub ? `<small class="${failed ? "st-bad t" : ""}">${esc(updSub)}</small>` : ""}</div></td>
       <td class="c-act">${href ? `<a class="btn sm" href="${esc(href)}" target="_blank" rel="noopener">${live ? "Open app" : "Open dashboard"} ${EXT}<span class="sr"> (opens in a new tab)</span></a>` : ""}</td>
     </tr>`;
   }
   const FILTERS = [["all", "All"], ["attention", "Issues"], ["healthy", "Healthy"], ["inactive", "Paused"]];
   const FKEYS = FILTERS.map((f) => f[0]);
   try { const f = localStorage.getItem("pulse-app-filter"); if (FKEYS.includes(f)) appFilter = f; } catch {}
+  const SORTS = [["status", "Status"], ["name", "Name"], ["updated", "Last updated"]];
+  try { const f = localStorage.getItem("pulse-app-sort"); if (SORTS.some((x) => x[0] === f)) appSort = f; } catch {}
+  const sortApps = (list) => {
+    if (appSort === "name") return list.slice().sort((a, b) => a.name.localeCompare(b.name));
+    if (appSort === "updated") return list.slice().sort((a, b) => (b.updatedAt ? +new Date(b.updatedAt) : 0) - (a.updatedAt ? +new Date(a.updatedAt) : 0) || a.name.localeCompare(b.name));
+    return list;
+  };
   const matchesFilter = (a, f) => f === "all" || (f === "attention" ? ["critical", "warning"].includes(a.health) : f === "healthy" ? a.health === "healthy" : a.health === "info");
 
   function renderApps() {
     $("#app-filters").innerHTML = FILTERS.map(([k, l]) => `<button type="button" data-k="${k}" aria-pressed="${appFilter === k}">${l}<span class="count num">${APPS.filter((a) => matchesFilter(a, k)).length}</span></button>`).join("");
+    $("#app-sort").innerHTML = SORTS.map(([k, l]) => `<button type="button" data-k="${k}" aria-pressed="${appSort === k}">${l}</button>`).join("");
     $("#apps-count").textContent = String(APPS.length);
     const q = appQuery.trim().toLowerCase();
-    const shown = APPS.filter((a) => matchesFilter(a, appFilter) && (!q || a.name.toLowerCase().includes(q) || a.key.includes(q) || a.names.some((n) => n.toLowerCase().includes(q))));
+    const shown = sortApps(APPS).filter((a) => matchesFilter(a, appFilter) && (!q || a.name.toLowerCase().includes(q) || a.key.includes(q) || a.names.some((n) => n.toLowerCase().includes(q))));
     const box = $("#apps");
     if (!shown.length) {
       box.innerHTML = `<div class="empty">${!APPS.length ? "No apps found yet." : q ? `No apps match “${esc(appQuery.trim())}”.` : appFilter === "attention" ? "No apps with issues." : "Nothing in this view."}</div>`;
+      syncSegs();
       return;
     }
-    box.innerHTML = `<div class="tw"><table class="atbl"><thead><tr><th class="c-st">Status</th><th>App</th><th>Platforms</th><th class="r">Uptime</th><th>Response</th><th class="c-deploy">Last deploy</th><th class="c-push">Last push</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${shown.map(appRow).join("")}</tbody></table></div>`;
+    box.innerHTML = `<div class="tw"><table class="atbl"><thead><tr><th class="c-st">Status</th><th>App</th><th>Platforms</th><th class="r">Uptime</th><th>Response</th><th class="c-upd">Last updated</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${shown.map(appRow).join("")}</tbody></table></div>`;
+    syncSegs();
   }
   function jumpToApp(id) {
     let el = document.getElementById(id);
@@ -708,6 +756,11 @@
     appFilter = b.dataset.k; renderApps();
     try { localStorage.setItem("pulse-app-filter", appFilter); } catch {}
   });
+  $("#app-sort").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    appSort = b.dataset.k; renderApps();
+    try { localStorage.setItem("pulse-app-sort", appSort); } catch {}
+  });
   $("#panel-overview").addEventListener("click", (e) => { const b = e.target.closest("[data-jump]"); if (b) jumpToApp(b.dataset.jump); });
 
   // ---------- All checks ----------
@@ -722,6 +775,7 @@
     const tabs = [["all", "All", sites.length], ...["netlify", "vercel", "supabase", "custom"].map((p) => [p, PLATFORM[p], sites.filter((s) => s.platform === p).length]).filter((t) => t[2]), ["issues", "Issues", issues.length]];
     $("#filters").innerHTML = tabs.map(([k, l, c]) => `<button type="button" role="tab" data-k="${k}" aria-selected="${checkFilter === k}">${l}<span class="count num">${c}</span></button>`).join("");
     $("#filters").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; checkFilter = b.dataset.k; renderSites(d, history); };
+    segSync($("#filters"));
     const shown = sites.filter((s) => checkFilter === "all" || (checkFilter === "issues" ? issues.includes(s) : s.platform === checkFilter));
     if (!shown.length) { $("#sites").innerHTML = `<div class="empty">${checkFilter === "issues" ? "No issues." : "Nothing here yet."}</div>`; return; }
     $("#sites").innerHTML = shown.map((s) => {
@@ -802,6 +856,7 @@
       else if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
     syncSearch();
+    syncSegs();
     if (persist) { try { localStorage.setItem(TAB_KEY, t); } catch {} }
     if (t === "traffic") { try { drawChart(); } catch (e) { console.warn(e); } }
     if (t === "overview") { try { redrawResp(); } catch (e) { console.warn(e); } }
@@ -960,9 +1015,9 @@
   }
 
   // ---------- Links tab ----------
-  function tile({ kind, name, host, meta, url, locked, badge, dot }) {
+  function tile({ kind, name, host, meta, url, locked, badge, dot, date }) {
     const q = lower([name, host, meta, kind, badge].join(" "));
-    return { q, html: `<a class="frow" href="${esc(url)}" target="_blank" rel="noopener">${GLYPHCHIP(kind)}<span class="fn">${dot || ""}<span class="tn">${esc(name)}</span>${locked ? LOCK_SVG : ""}${badge ? `<em class="badge">${esc(badge)}</em>` : ""}</span><span class="fm">${esc([host, meta].filter(Boolean).join(" · "))}</span><span class="to">${EXT}</span><span class="sr"> (opens in a new tab)</span></a>` };
+    return { q, html: `<a class="frow" href="${esc(url)}" target="_blank" rel="noopener">${GLYPHCHIP(kind)}<span class="fn">${dot || ""}<span class="tn">${esc(name)}</span>${locked ? LOCK_SVG : ""}${badge ? `<em class="badge">${esc(badge)}</em>` : ""}</span><span class="fm">${esc([host, meta].filter(Boolean).join(" · "))}</span><span class="fd num"${date ? ` title="${esc(date.tip)}"` : ""}>${date ? esc(fmtDate(date.at)) : ""}</span><span class="to">${EXT}</span><span class="sr"> (opens in a new tab)</span></a>` };
   }
   function buildLinkSections(d) {
     const secs = [];
@@ -971,22 +1026,22 @@
       if (s.platform === "supabase" || !safeUrl(s.url)) continue;
       const h = hostOf(s.url); if (seenHost.has(h)) continue; seenHost.add(h);
       const st = STATE[s.check?.state || "unknown"] || STATE.unknown;
-      live.push(tile({ kind: s.platform, name: s.name, host: h, meta: st.label, url: s.url, dot: sdot(rate("state", s.check?.state)) }));
+      live.push(tile({ kind: s.platform, name: s.name, host: h, meta: st.label, url: s.url, dot: sdot(rate("state", s.check?.state)), date: s.deploy?.at ? { at: s.deploy.at, tip: `Last deploy ${fmtDateTime(s.deploy.at)}` } : null }));
     }
     for (const r of d.github?.repos || []) {
       if (!safeUrl(r.homepage)) continue;
       const h = hostOf(r.homepage); if (seenHost.has(h)) continue; seenHost.add(h);
-      live.push(tile({ kind: "custom", name: r.name, host: h, meta: "Repo homepage", url: r.homepage }));
+      live.push(tile({ kind: "custom", name: r.name, host: h, meta: "Repo homepage", url: r.homepage, date: r.pushedAt ? { at: r.pushedAt, tip: `Last push ${fmtDateTime(r.pushedAt)}` } : null }));
     }
     secs.push({ title: "Live sites", icon: "pulse", sub: "", tiles: live });
     const dash = [];
     for (const s of (d.sites || []).slice().sort((a, b) => (COMP_ORDER[a.platform] - COMP_ORDER[b.platform]) || a.name.localeCompare(b.name))) {
       if (!["netlify", "vercel", "supabase"].includes(s.platform) || !safeUrl(s.dashboard)) continue;
-      dash.push(tile({ kind: s.platform, name: s.name, host: hostOf(s.dashboard), meta: `${PLATFORM[s.platform]} dashboard`, url: s.dashboard }));
+      dash.push(tile({ kind: s.platform, name: s.name, host: hostOf(s.dashboard), meta: `${PLATFORM[s.platform]} dashboard`, url: s.dashboard, date: s.deploy?.at ? { at: s.deploy.at, tip: `Last deploy ${fmtDateTime(s.deploy.at)}` } : null }));
     }
     secs.push({ title: "App dashboards", icon: "server", sub: "", tiles: dash });
     const repos = (d.github?.repos || []).slice().sort((a, b) => (Number(a.archived) - Number(b.archived)) || String(b.pushedAt).localeCompare(String(a.pushedAt)));
-    secs.push({ title: "GitHub repos", icon: "git", sub: `${repos.length} repositor${repos.length === 1 ? "y" : "ies"}`, tiles: repos.filter((r) => safeUrl(r.url)).map((r) => tile({ kind: "github", name: r.name, host: r.language || "", meta: `${nf(r.stars)} stars · ${nf(r.forks)} forks · pushed ${ago(r.pushedAt)}`, url: r.url, locked: r.private, badge: r.archived ? "Archived" : "" })) });
+    secs.push({ title: "GitHub repos", icon: "git", sub: `${repos.length} repositor${repos.length === 1 ? "y" : "ies"}`, tiles: repos.filter((r) => safeUrl(r.url)).map((r) => tile({ kind: "github", name: r.name, host: r.language || "", meta: `${nf(r.stars)} stars · ${nf(r.forks)} forks · pushed ${ago(r.pushedAt)}`, url: r.url, locked: r.private, badge: r.archived ? "Archived" : "", date: r.pushedAt ? { at: r.pushedAt, tip: `Last push ${fmtDateTime(r.pushedAt)}` } : null })) });
     const acct = d.accounts || {};
     const A = [["netlify", "Netlify team", acct.netlify], ["vercel", "Vercel", acct.vercel], ["supabase", "Supabase organization", acct.supabase], ["github", "GitHub profile", acct.github]];
     secs.push({ title: "Accounts", icon: "users", sub: "", tiles: A.filter((a) => safeUrl(a[2])).map(([k, n, u]) => tile({ kind: k, name: n, host: hostOf(u), meta: "", url: u })) });
@@ -1052,20 +1107,20 @@
       return `<li class="arch${done[key(x)] ? " is-done" : ""}">
         <label class="mcheck"><input type="checkbox" data-done="${id}"${done[key(x)] ? " checked" : ""}><span class="sr">Mark ${esc(x.name)} as done</span></label>
         <div class="arch-main"><div class="arch-name"><b>${esc(x.name)}</b><span class="pf">${esc(plat)}</span>${x.status ? `<span class="chip st-none">${esc(String(x.status).replace(/_/g, " ").toLowerCase())}</span>` : ""}</div>
-        <div class="arch-sub">${x.lastDeployAt ? `Last deploy ${ago(x.lastDeployAt)}` : "No deploy data"}</div></div>
+        <div class="arch-sub">${x.lastDeployAt ? `<span title="${esc(fmtDateTime(x.lastDeployAt))} · ${esc(ago(x.lastDeployAt))}">Last deploy ${esc(fmtDate(x.lastDeployAt))}</span>` : "No deploy data"}</div></div>
         <div class="arch-actions">${extLink(x.url || x.dashboard, "Open " + EXT, "btn sm")}${extLink(x.deleteUrl, `Delete in ${esc(plat)} ${EXT}`, "btn sm danger")}</div></li>`;
     }).join("")}</ul><div class="hint">Checkboxes are a personal checklist saved in this browser. Nothing is deleted from here.</div>`;
     html += `</section>`;
 
     html += `<section class="pn span7">${pnh("clock", "Possibly dormant", `<span class="count num">${dormant.length}</span>`, `no deploy or push in ${DORMANT_DAYS}+ days`)}`;
     if (!dormant.length) html += `<div class="empty">Nothing looks dormant.</div>`;
-    else html += `<ul class="checklist">${dormant.map((x) => `<li class="arch"><div class="arch-main"><div class="arch-name"><b>${esc(x.name)}</b><span class="chip st-none">${esc(x.what)}</span></div><div class="arch-sub">Last activity ${ago(new Date(x.at).toISOString())}</div></div><div class="arch-actions">${x.links.map(([l, u]) => extLink(u, `${esc(l)} ${EXT}`, "btn sm")).join("")}</div></li>`).join("")}</ul>
+    else html += `<ul class="checklist">${dormant.map((x) => `<li class="arch"><div class="arch-main"><div class="arch-name"><b>${esc(x.name)}</b><span class="chip st-none">${esc(x.what)}</span></div><div class="arch-sub"><span title="${esc(ago(new Date(x.at).toISOString()))}">Last activity ${esc(fmtDate(new Date(x.at).toISOString()))}</span></div></div><div class="arch-actions">${x.links.map(([l, u]) => extLink(u, `${esc(l)} ${EXT}`, "btn sm")).join("")}</div></li>`).join("")}</ul>
       <div class="hint">Suggestions only. Add a name to <code>archive</code> in pulse.config.json to move it here.</div>`;
     html += `</section>`;
 
     html += `<section class="pn span5">${pnh("git", "Archived GitHub repos", `<span class="count num">${ghArch.length}</span>`)}`;
     if (!ghArch.length) html += `<div class="empty">No archived repositories.</div>`;
-    else html += `<ul class="checklist">${ghArch.map((r) => `<li class="arch"><div class="arch-main"><div class="arch-name"><b>${esc(r.name)}</b>${r.private ? LOCK_SVG : ""}${r.language ? `<span class="chip st-none">${esc(r.language)}</span>` : ""}</div><div class="arch-sub">${r.pushedAt ? `Last pushed ${ago(r.pushedAt)}` : "No push data"}</div></div><div class="arch-actions">${extLink(r.url, "Open " + EXT, "btn sm")}${safeUrl(r.url) ? extLink(r.url + "/settings#danger-zone", "Delete in GitHub " + EXT, "btn sm danger") : ""}</div></li>`).join("")}</ul>`;
+    else html += `<ul class="checklist">${ghArch.map((r) => `<li class="arch"><div class="arch-main"><div class="arch-name"><b>${esc(r.name)}</b>${r.private ? LOCK_SVG : ""}${r.language ? `<span class="chip st-none">${esc(r.language)}</span>` : ""}</div><div class="arch-sub">${r.pushedAt ? `<span title="${esc(fmtDateTime(r.pushedAt))} · ${esc(ago(r.pushedAt))}">Last pushed ${esc(fmtDate(r.pushedAt))}</span>` : "No push data"}</div></div><div class="arch-actions">${extLink(r.url, "Open " + EXT, "btn sm")}${safeUrl(r.url) ? extLink(r.url + "/settings#danger-zone", "Delete in GitHub " + EXT, "btn sm danger") : ""}</div></li>`).join("")}</ul>`;
     html += `</section></div>`;
     $("#archive").innerHTML = html;
   }
@@ -1089,11 +1144,13 @@
     const d = await decrypt(encLatest, password);
     const history = encHistory ? await decrypt(encHistory, password).catch((e) => { if (e.wrongPassword) return { runs: [] }; throw e; }) : { runs: [] };
     document.title = d.title || "Project Pulse";
-    $("#title").textContent = d.title || "Project Pulse";
+    document.querySelectorAll(".js-title").forEach((el) => { el.textContent = d.title || "Project Pulse"; });
     const next = new Date(new Date(d.generatedAt).getTime() + (d.intervalMinutes || 60) * 60000);
     const stale = Date.now() - new Date(d.generatedAt).getTime() > (d.intervalMinutes || 60) * 120000;
-    $("#updated").textContent = stale ? `Updated ${ago(d.generatedAt)}, refresh overdue` : `Updated ${ago(d.generatedAt)}`;
-    $("#updated").title = `${new Date(d.generatedAt).toLocaleString()} · next ~${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    document.querySelectorAll(".js-updated").forEach((el) => {
+      el.textContent = stale ? `Updated ${ago(d.generatedAt)}, refresh overdue` : `Updated ${ago(d.generatedAt)}`;
+      el.title = `${new Date(d.generatedAt).toLocaleString()} · next ~${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    });
     D = d; HIST = history;
     const built = buildApps(d, history);
     APPS = built.apps; SPARE = built.spare;
@@ -1119,7 +1176,7 @@
 
   // ---------- Lock screen ----------
   const PASS_KEY = "pulse-pass";
-  const showApp = () => { $("#lock").hidden = true; $("#app").hidden = false; document.body.classList.add("unlocked"); redrawResp(); drawChart(); };
+  const showApp = () => { $("#lock").hidden = true; $("#app").hidden = false; document.body.classList.add("unlocked"); redrawResp(); drawChart(); syncSegs(); };
   const showLock = () => { $("#app").hidden = true; document.body.classList.remove("unlocked"); $("#lock").hidden = false; $("#lock-pass").focus(); };
   const noData = (e) => { $("#p-health").innerHTML = `${pnh("alert", "No data yet")}<p class="lead">Run the “Pulse” workflow once from the Actions tab. (${esc(e.message)})</p>`; };
   // Returns true when unlocked (or when there is no data to unlock yet).

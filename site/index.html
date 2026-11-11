@@ -24,46 +24,46 @@
 
   <div id="app" hidden>
     <div class="window">
-      <header class="toolbar">
-        <div class="tb-left">
-          <div class="lights" aria-hidden="true"><i class="l-r"></i><i class="l-y"></i><i class="l-g"></i></div>
-          <div class="wtitle"><b id="title">Project Pulse</b><span id="updated">Loading…</span></div>
-        </div>
-        <nav id="tabs" class="seg tabs" role="tablist" aria-label="Dashboard sections">
-          <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
-          <button type="button" role="tab" id="tab-traffic" data-tab="traffic" aria-selected="false" aria-controls="panel-traffic" tabindex="-1">Traffic</button>
-          <button type="button" role="tab" id="tab-links" data-tab="links" aria-selected="false" aria-controls="panel-links" tabindex="-1">Links</button>
-          <button type="button" role="tab" id="tab-archive" data-tab="archive" aria-selected="false" aria-controls="panel-archive" tabindex="-1">Archive<span id="tab-archive-count" class="tcount num" hidden></span></button>
-        </nav>
-        <div class="tools">
-          <label class="msearch"><span class="sr">Search</span>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.2 10.2L14 14"/></svg>
-            <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
-          </label>
-          <button id="theme" class="btn icon" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor"/></svg></button>
-          <button id="lock-btn" class="btn" type="button">Lock</button>
-        </div>
-      </header>
-
-      <div class="wbody">
-        <aside class="sidebar" aria-label="Navigation">
-          <div class="s-brand"><span class="app-icon sm"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h6l3-8 4 15 3-7h8"/></svg></span><b>Project Pulse</b></div>
-          <label class="msearch side-search"><span class="sr">Search</span>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.2 10.2L14 14"/></svg>
-            <input id="side-search" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
-            <kbd aria-hidden="true">&#8984;K</kbd>
-          </label>
-          <nav id="side">
-            <div class="sh">Monitor</div>
-            <button type="button" class="srow" data-tab="overview"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg><span class="sl">Overview</span><span id="sb-overview" class="sbadge num" hidden></span></button>
-            <button type="button" class="srow" data-tab="traffic"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12"/><path d="M2.5 10.5l3.2-4 3 2.3L13.5 3.5"/></svg><span class="sl">Traffic</span></button>
-            <div class="sh">Manage</div>
-            <button type="button" class="srow" data-tab="links"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 9.3a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.7.7"/><path d="M9.3 6.7a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.7-.7"/></svg><span class="sl">Links</span></button>
-            <button type="button" class="srow" data-tab="archive"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.2" rx="1"/><path d="M3.2 5.7v6.8a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V5.7"/><path d="M6.5 8.8h3"/></svg><span class="sl">Archive</span><span id="sb-archive" class="sbadge num" hidden></span></button>
+      <aside class="sidebar" aria-label="Navigation">
+      <div class="lights" aria-hidden="true"><i class="l-r"></i><i class="l-y"></i><i class="l-g"></i></div>
+      <div class="s-brand"><span class="app-icon sm"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h6l3-8 4 15 3-7h8"/></svg></span><div class="wtitle"><b class="js-title">Project Pulse</b><span class="js-updated">Loading…</span></div></div>
+      <label class="msearch side-search"><span class="sr">Search</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.2 10.2L14 14"/></svg>
+        <input id="side-search" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
+        <kbd aria-hidden="true">&#8984;K</kbd>
+      </label>
+      <nav id="side">
+        <div class="sh">Monitor</div>
+        <button type="button" class="srow" data-tab="overview"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg><span class="sl">Overview</span><span id="sb-overview" class="sbadge num" hidden></span></button>
+        <button type="button" class="srow" data-tab="traffic"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12"/><path d="M2.5 10.5l3.2-4 3 2.3L13.5 3.5"/></svg><span class="sl">Traffic</span></button>
+        <div class="sh">Manage</div>
+        <button type="button" class="srow" data-tab="links"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 9.3a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.7.7"/><path d="M9.3 6.7a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.7-.7"/></svg><span class="sl">Links</span></button>
+        <button type="button" class="srow" data-tab="archive"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.2" rx="1"/><path d="M3.2 5.7v6.8a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V5.7"/><path d="M6.5 8.8h3"/></svg><span class="sl">Archive</span><span id="sb-archive" class="sbadge num" hidden></span></button>
+      </nav>
+      <div class="sh">Platforms</div>
+      <div id="side-plat" class="side-plat"></div>
+      </aside>
+      <div class="mcol">
+        <header class="toolbar">
+          <div class="tb-left">
+            <div class="lights" aria-hidden="true"><i class="l-r"></i><i class="l-y"></i><i class="l-g"></i></div>
+            <div class="wtitle"><b class="js-title">Project Pulse</b><span class="js-updated">Loading…</span></div>
+          </div>
+          <nav id="tabs" class="seg tabs" role="tablist" aria-label="Dashboard sections">
+            <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
+            <button type="button" role="tab" id="tab-traffic" data-tab="traffic" aria-selected="false" aria-controls="panel-traffic" tabindex="-1">Traffic</button>
+            <button type="button" role="tab" id="tab-links" data-tab="links" aria-selected="false" aria-controls="panel-links" tabindex="-1">Links</button>
+            <button type="button" role="tab" id="tab-archive" data-tab="archive" aria-selected="false" aria-controls="panel-archive" tabindex="-1">Archive<span id="tab-archive-count" class="tcount num" hidden></span></button>
           </nav>
-          <div class="sh">Platforms</div>
-          <div id="side-plat" class="side-plat"></div>
-        </aside>
+          <div class="tools">
+            <label class="msearch"><span class="sr">Search</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.2 10.2L14 14"/></svg>
+              <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
+            </label>
+            <button id="theme" class="btn icon" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor"/></svg></button>
+            <button id="lock-btn" class="btn" type="button"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>Lock</button>
+          </div>
+        </header>
 
         <main class="wrap">
           <!-- Overview -->
@@ -82,7 +82,7 @@
               <section id="apps-section" class="pn span12" aria-label="Apps">
                 <div class="pn-h">
                   <h2>Apps</h2><span id="apps-count" class="count num"></span>
-                  <div id="app-filters" class="seg sm" role="group" aria-label="Filter apps"></div>
+                  <div class="pn-r"><div id="app-filters" class="seg sm" role="group" aria-label="Filter apps"></div><div id="app-sort" class="seg sm" role="group" aria-label="Sort apps"></div></div>
                 </div>
                 <div id="apps" class="apps"></div>
               </section>
