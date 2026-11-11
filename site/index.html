@@ -30,12 +30,31 @@
       </div>
       <div class="meta">
         <span id="updated">Loading…</span>
-        <button id="theme" class="ghost" type="button" aria-label="Toggle theme">◐</button>
+        <button id="theme" class="ghost" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
         <button id="lock-btn" class="ghost wide" type="button">Lock</button>
       </div>
     </header>
 
-    <section id="hero" class="hero" aria-live="polite"></section>
+    <section id="hero" class="hero" aria-live="polite" aria-label="Health at a glance"></section>
+
+    <section id="attention-section" hidden>
+      <h2 class="section-title">Needs attention</h2>
+      <div id="attention" class="attn-list"></div>
+    </section>
+
+    <section id="apps-section">
+      <div class="section-head">
+        <h2 class="section-title">Apps</h2>
+        <div class="app-tools">
+          <div id="app-filters" class="filters" role="group" aria-label="Filter apps"></div>
+          <label class="search"><span class="sr">Search apps</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+            <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+      </div>
+      <div id="apps" class="apps"></div>
+    </section>
 
     <section>
       <h2 class="section-title">Usage &amp; limits</h2>
@@ -43,15 +62,17 @@
     </section>
 
     <section>
-      <div class="section-head">
-        <h2 class="section-title">Sites &amp; apps</h2>
-        <div id="filters" class="filters" role="tablist"></div>
-      </div>
-      <div id="sites" class="sites"></div>
+      <details id="checks" class="checks">
+        <summary><span>All checks</span><span id="checks-count" class="count num"></span></summary>
+        <div class="checks-body">
+          <div id="filters" class="filters" role="tablist"></div>
+          <div id="sites" class="sites"></div>
+        </div>
+      </details>
     </section>
 
     <section id="repos-section" hidden>
-      <h2 class="section-title">Recent repo activity</h2>
+      <h2 class="section-title">Repos</h2>
       <div id="repos" class="repos"></div>
     </section>
 
