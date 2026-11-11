@@ -203,6 +203,10 @@
       c = "var(--warn)"; h = "Mostly operational";
       p = [degraded.length && `${degraded.length} degraded`, failedDeploys.length && `${failedDeploys.length} failed deploy${failedDeploys.length > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
     }
+    else if (d.errors?.length) {
+      c = "var(--warn)"; h = "Some monitoring data is unavailable";
+      p = 'Review the collector warnings below; missing data does not confirm that every project is healthy.';
+    }
     const ms = checked.map((s) => s.check.ms).filter((x) => x != null && x > 0);
     const avg = ms.length ? Math.round(ms.reduce((a, b) => a + b, 0) / ms.length) : null;
     const all = checked.map((s) => siteHistory(s.id, history, 1).pct).filter((x) => x != null);
