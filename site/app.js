@@ -640,6 +640,7 @@
 
   // ---------- Shared data for the extra tabs ----------
   let D = null, HIST = null, SPARE = [];
+  let SERIES = null; // declared before initTabs so a saved "traffic" tab can't hit it early
   let pendingApps = false;
   const nf = (n) => Number(n || 0).toLocaleString();
   const lower = (x) => String(x || "").toLowerCase();
@@ -659,7 +660,7 @@
       b.tabIndex = k === t ? 0 : -1;
     }
     if (persist) { try { localStorage.setItem(TAB_KEY, t); } catch {} }
-    if (t === "traffic") drawChart();
+    if (t === "traffic") { try { drawChart(); } catch (e) { console.warn(e); } }
   }
   (function initTabs() {
     let t = hashTab();
@@ -711,7 +712,6 @@
     }
     return out;
   }
-  let SERIES = null;
   function drawChart() {
     const el = $("#gh-chart");
     if (!el || !SERIES) return;
