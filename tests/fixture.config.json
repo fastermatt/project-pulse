@@ -1,0 +1,25 @@
+{
+  "title": "Project Pulse",
+  "historyDays": 30,
+  "limits": {
+    "netlifyBandwidthGB": 100,
+    "netlifyBuildMinutes": 300,
+    "supabaseDbMB": 500,
+    "supabaseActiveProjects": 2
+  },
+  "exclude": [],
+  "extraChecks": [],
+  "githubOwner": "fastermatt",
+  "groups": {
+    "Family": [
+      "prj_live",
+      "family-quest"
+    ]
+  },
+  "archive": [
+    "arch1",
+    "prj_arch",
+    "COFFinder"
+  ],
+  "links": []
+}

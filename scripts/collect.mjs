@@ -14,11 +14,13 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = process.env.PULSE_OUT_DIR || path.join(ROOT, "site", "data");
-const config = JSON.parse(await readFile(path.join(ROOT, "pulse.config.json"), "utf8"));
+const config = JSON.parse(await readFile(process.env.PULSE_CONFIG || path.join(ROOT, "pulse.config.json"), "utf8"));
 const limits = config.limits || {};
 const exclude = new Set((config.exclude || []).map((s) => s.toLowerCase()));
 const archiveSet = new Set((config.archive || []).map((s) => s.toLowerCase()));
-const isArchived = (name) => archiveSet.has(String(name || "").toLowerCase());
+// Config entries may be a name or a stable platform ID (Netlify site id, Vercel prj_ id, Supabase ref),
+// so renaming a project does not silently drop it from the archive or its group.
+const isArchived = (name, id) => archiveSet.has(String(name || "").toLowerCase()) || (id != null && archiveSet.has(String(id).toLowerCase()));
 const isoOrNull = (ms) => (ms ? new Date(ms).toISOString() : null);
 
 const env = process.env;
@@ -159,9 +161,9 @@ async function netlify() {
   }
 
   const kept = sites.filter((s) => !exclude.has(s.name.toLowerCase()));
-  const activeSites = kept.filter((s) => !isArchived(s.name));
+  const activeSites = kept.filter((s) => !isArchived(s.name, s.id));
   const archived = kept
-    .filter((s) => isArchived(s.name))
+    .filter((s) => isArchived(s.name, s.id))
     .map((s) => ({
       name: s.name,
       platform: "netlify",
@@ -232,10 +234,10 @@ async function vercel() {
   const teamInfo = env.VERCEL_TEAM_ID ? await safe("vercel team", () => api(`${base}/v2/teams/${env.VERCEL_TEAM_ID}`, { token })) : null;
   const projectsRes = await safe("vercel projects", () => api(`${base}/v10/projects?${q("limit=100")}`, { token }), { projects: [] });
   const allProjects = (projectsRes?.projects || []).filter((p) => !exclude.has(p.name.toLowerCase()));
-  const projects = allProjects.filter((p) => !isArchived(p.name));
+  const projects = allProjects.filter((p) => !isArchived(p.name, p.id));
   // Archived projects: listing data only, no per-project requests.
   const archived = allProjects
-    .filter((p) => isArchived(p.name))
+    .filter((p) => isArchived(p.name, p.id))
     .map((p) => {
       const alias = p.targets?.production?.alias?.[0] || p.alias?.[0]?.domain || null;
       const ld = p.latestDeployments?.[0];
@@ -314,7 +316,7 @@ async function supabase() {
   for (const p of projects) {
     if (exclude.has(p.name.toLowerCase())) continue;
     const ref = p.ref || p.id;
-    if (isArchived(p.name)) {
+    if (isArchived(p.name, ref)) {
       // Listing data only: no database, health or auth queries.
       archived.push({
         name: p.name,
@@ -528,6 +530,18 @@ for (const [repo, store] of Object.entries(history.ghTraffic)) {
 }
 
 const { archived: sbArchived = [], users: sbUsers = [], orgSlug: sbOrg = null, ...sbPublic } = sb;
+// Map config group entries (names or IDs) to the current names, so renames are picked up automatically.
+function resolveGroups() {
+  const byId = new Map();
+  for (const x of [...targets, ...sb.projects]) {
+    const raw = String(x.id || "").split(":").slice(1).join(":");
+    if (raw) byId.set(raw.toLowerCase(), x.name);
+    if (x.ref) byId.set(String(x.ref).toLowerCase(), x.name);
+  }
+  return Object.fromEntries(Object.entries(config.groups || {}).map(([label, entries]) =>
+    [label, (entries || []).map((e) => byId.get(String(e).toLowerCase()) || e)]));
+}
+
 const latest = {
   title: config.title || "Project Pulse",
   generatedAt: now.toISOString(),
@@ -544,7 +558,7 @@ const latest = {
     })),
   ],
   archived: [...nl.archived, ...vc.archived, ...sbArchived],
-  config: { groups: config.groups || {}, links: config.links || [] },
+  config: { groups: resolveGroups(), links: config.links || [] },
   accounts: {
     netlify: nl.teamSlug ? `https://app.netlify.com/teams/${nl.teamSlug}/projects` : null,
     vercel: vc.configured ? (vc.teamSlug ? `https://vercel.com/${vc.teamSlug}` : "https://vercel.com/dashboard") : null,

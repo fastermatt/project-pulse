@@ -11,7 +11,7 @@ const password = 'test-only-password-never-used-live';
 function run(out, pw = password, extra = {}) {
   return spawnSync(process.execPath, ['--import', './tests/mock-fetch.mjs', './scripts/collect.mjs'], {
     cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH, DASHBOARD_PASSWORD: pw,
-      NETLIFY_TOKEN: 'fake-token', PULSE_OUT_DIR: out, ...extra },
+      NETLIFY_TOKEN: 'fake-token', PULSE_OUT_DIR: out, PULSE_CONFIG: 'tests/fixture.config.json', ...extra },
   });
 }
 async function decrypt(envelope, pw = password) {
@@ -76,6 +76,7 @@ test('archived items are listed separately and unqueried; traffic history accumu
     assert.equal(latest.accounts.supabase, 'https://supabase.com/dashboard/org/orgslug');
     assert.equal(latest.accounts.github, 'https://github.com/fastermatt');
     assert.ok(latest.config.groups.Family.includes('family-quest'));
+    assert.ok(latest.config.groups.Family.includes('live-proj'), 'group entries given as IDs resolve to current names');
     assert.deepEqual(latest.traffic.supabaseUsers.map((u) => [u.ref, u.users]), [['liveref', 12]]);
     assert.deepEqual(latest.traffic.netlifyForms.map((f) => [f.site, f.form, f.submissions]), [['PRIVATE_SITE_SENTINEL', 'contact', 7], ['PRIVATE_SITE_SENTINEL', 'empty', 0]]);
     const gh = latest.github.repos;

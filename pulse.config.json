@@ -11,10 +11,32 @@
   "extraChecks": [],
   "githubOwner": "fastermatt",
   "groups": {
-    "Family": ["app-family-controls", "family-tasks-deploy", "family-quest", "family-quest-prod"],
-    "ABQ Unplugged": ["abq-unplugged-v2", "abq-unplugged"],
-    "ShootForms": ["readyrelease"]
+    "Family": [
+      "prj_MLH040Xgaz6XNdF55Df9HrsD0dua",
+      "prj_CM5s3I70vIN4cb3rT1eWB5McD3Xc",
+      "prj_GmYl7abZnYnrJtgyEG6dLWmRfJRm",
+      "prj_ScUkXprXegKbLdIJzAZKGK91v9gx",
+      "oxxatwhiwfetjuyobyrt",
+      "family-quest"
+    ],
+    "ABQ Unplugged": [
+      "a0ff66c2-b959-4438-b184-509597d248e2",
+      "bsmvfutebmbkjvlrhiyq"
+    ],
+    "ShootForms": [
+      "prj_9WXzuthztJ1XvSrhNYDoOnmFgr0f",
+      "readyrelease"
+    ]
   },
-  "archive": ["family-quest-prod", "harmonious-dodol-de7713", "fastidious-pasca-123116", "gleeful-smakager-311cf9", "fastermatt", "COFFinder", "Small Batch Scout"],
-  "links": []
+  "archive": [
+    "prj_ScUkXprXegKbLdIJzAZKGK91v9gx",
+    "caae35ea-80dc-4957-86f8-fa605220f028",
+    "2d15ad27-af56-4a36-8e6b-f0dba3a2e2c4",
+    "37f1c12f-6dd8-40f4-a2c7-c0997456f1b0",
+    "83da1b8d-b550-4173-a582-6d17887eb375",
+    "jbskmyukwfrxttuxlptn",
+    "ybrstegbnuijzsevaahc"
+  ],
+  "links": [],
+  "_idsNote": "groups/archive accept names or stable IDs (Netlify site id, Vercel prj_ id, Supabase ref, GitHub repo name). IDs survive renames."
 }
