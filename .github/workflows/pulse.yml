@@ -2,7 +2,7 @@ name: Pulse
 
 on:
   schedule:
-    - cron: "17 * * * *" # hourly; GitHub may delay scheduled runs a few minutes
+    - cron: "17 */3 * * *" # every three hours; GitHub may delay scheduled runs
   workflow_dispatch:
   push:
     branches: [main]
@@ -51,7 +51,7 @@ jobs:
           SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
           GH_REPOS_TOKEN: ${{ secrets.GH_REPOS_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          PULSE_INTERVAL_MINUTES: "60"
+          PULSE_INTERVAL_MINUTES: "180"
         run: node scripts/collect.mjs
 
       - name: Verify published file allowlist
@@ -72,6 +72,7 @@ jobs:
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: site
+          retention-days: 1
 
       - name: Deploy GitHub Pages
         id: deployment

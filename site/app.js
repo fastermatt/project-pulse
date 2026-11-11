@@ -181,7 +181,7 @@
         <div class="site-name"><span class="dot" style="--c:${st.c}" title="${st.label}"></span>
           <div class="txt"><div class="nrow"><a class="n" href="${esc(link)}" target="_blank" rel="noopener">${esc(s.name)}</a>${deployBad(s) ? `<span class="chip bad sm">deploy failed</span>` : ""}</div>
           <div class="host"><span class="pf ${s.platform}">${PLATFORM[s.platform]}</span><span>${esc(host)}${deploy}</span></div></div></div>
-        <div class="ticks-wrap"><div class="ticks">${ticks}</div><div class="lbl"><span>${N}h ago</span><span>${esc(st.label)}${s.check?.status ? ` · HTTP ${s.check.status}` : ""}</span><span>now</span></div></div>
+        <div class="ticks-wrap"><div class="ticks">${ticks}</div><div class="lbl"><span>Last ${N} checks</span><span>${esc(st.label)}${s.check?.status ? ` · HTTP ${s.check.status}` : ""}</span><span>latest</span></div></div>
         <div class="ms num">${s.check?.ms != null ? `${s.check.ms} ms` : "—"}<small>response</small></div>
         <div class="pct num">${s.state === "paused" ? "—" : s.h.pct != null ? `${s.h.pct >= 99.95 ? "100" : s.h.pct.toFixed(1)}%` : "—"}<small>uptime</small></div>
       </div>`;
@@ -212,7 +212,7 @@
       <div><h2>${esc(h)}</h2><p>${esc(p)}</p></div>
       <div class="stats">
         <div class="stat"><b class="num">${upCount}/${checked.length}</b><span>up now</span></div>
-        <div class="stat"><b class="num">${overall != null ? overall.toFixed(overall >= 99.95 ? 0 : 1) + "%" : "—"}</b><span>uptime (${(history?.runs || []).length > 24 ? "30d" : "so far"})</span></div>
+        <div class="stat"><b class="num">${overall != null ? overall.toFixed(overall >= 99.95 ? 0 : 1) + "%" : "—"}</b><span>recorded uptime</span></div>
         <div class="stat"><b class="num">${avg != null ? avg + " ms" : "—"}</b><span>avg response</span></div>
       </div>`;
   }

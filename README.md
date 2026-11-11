@@ -6,7 +6,7 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 
 ## What it shows
 
-- **Uptime** for every Netlify site and Vercel project. The list is discovered automatically from your accounts, so new projects show up without editing anything. Each one shows a 48-hour status bar, the response time and the 30-day uptime %.
+- **Uptime** for every Netlify site and Vercel project. The list is discovered automatically from your accounts, so new projects show up without editing anything. Each one shows recent checks, response time and the percentage of successful recorded checks retained over up to 30 days.
 - **Supabase** project status (active or paused) and database size against the 500 MB free limit. It also shows how many of your 2 free active projects you're using.
 - **Netlify** bandwidth and build minutes against your plan, plus days until the reset.
 - **Vercel** production deploy health, which flags failed deploys. The Hobby plan has no usage API, so the card links to your usage page instead.
@@ -14,12 +14,12 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 
 ## How light it is
 
-| Platform | What Pulse does each hour | Counts toward your limits? |
+| Platform | What Pulse does every three hours | Counts toward your limits? |
 |---|---|---|
-| Netlify | Management API reads + 1 `HEAD` request per site | API: no. `HEAD`: a few hundred bytes (~0.5 MB/month total) |
-| Vercel | Management API reads + 1 `HEAD` per project | API: no. `HEAD`: ~720 edge requests/project/month out of 1M |
+| Netlify | Management API reads + 1 `HEAD` request per site | About 240 site checks/site per 30 days; dynamic routes may execute server code |
+| Vercel | Management API reads + 1 `HEAD` per project | About 240 site checks/project per 30 days; requests and any function work can count toward usage |
 | Supabase | Management API reads + 1 read-only catalog query (`pg_database_size`) per **active** project | Tiny API responses; paused projects are skipped |
-| GitHub | ~1 minute of Actions per run | Free for public repos |
+| GitHub | Short standard Linux Actions run + Pages deployment | Standard runners are free for public repos; deployment artifacts expire after 1 day |
 
 ## Setup (about 5 minutes)
 
@@ -37,7 +37,7 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 4. **Run it once** from Actions → Pulse → Run workflow. This saves encrypted history to `gh-pages` and explicitly deploys the site.
 5. Open `https://<you>.github.io/project-pulse/`.
 
-The workflow runs hourly at :17 UTC. To check more often, edit the cron in `.github/workflows/pulse.yml` (for example `*/30 * * * *`) and change `PULSE_INTERVAL_MINUTES` to match.
+The workflow runs every three hours at :17 UTC (00:17, 03:17, and so on). To change the frequency, edit the cron in `.github/workflows/pulse.yml` and change `PULSE_INTERVAL_MINUTES` to match.
 
 ## Privacy
 

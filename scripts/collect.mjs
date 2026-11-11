@@ -4,9 +4,8 @@
 // writes AES-GCM encrypted site/data/latest.enc.json + site/data/history.enc.json
 // (password from DASHBOARD_PASSWORD; plaintext data is never written).
 //
-// Management-API reads (Netlify/Vercel/Supabase) do not count toward your
-// bandwidth, function, edge-request or egress quotas. The only quota-touching
-// traffic is one HEAD request per site per run (a few hundred bytes).
+// Management-API reads are small. Site HEAD checks can still count as hosted
+// requests and may execute dynamic server code; they are not zero-resource probes.
 
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
