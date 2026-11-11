@@ -1,13 +1,14 @@
 // Project Pulse collector.
 // Runs in GitHub Actions (Node 20+, no dependencies). Reads platform APIs with
 // tokens from env, sends one lightweight HEAD request to each live site, and
-// writes site/data/latest.json + site/data/history.json.
+// writes AES-GCM encrypted site/data/latest.enc.json + site/data/history.enc.json
+// (password from DASHBOARD_PASSWORD; plaintext data is never written).
 //
 // Management-API reads (Netlify/Vercel/Supabase) do not count toward your
 // bandwidth, function, edge-request or egress quotas. The only quota-touching
 // traffic is one HEAD request per site per run (a few hundred bytes).
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -20,6 +21,32 @@ const exclude = new Set((config.exclude || []).map((s) => s.toLowerCase()));
 const env = process.env;
 const errors = [];
 const now = new Date();
+
+const PASSWORD = env.DASHBOARD_PASSWORD;
+if (!PASSWORD) {
+  console.error("DASHBOARD_PASSWORD is not set. Add it as a repository secret: the dashboard data is encrypted with it, and nothing is written without it.");
+  process.exit(1);
+}
+
+// ---------- Encryption (PBKDF2-SHA256 -> AES-256-GCM; same WebCrypto API as the browser) ----------
+const KDF_ITER = 310000;
+const b64 = (buf) => Buffer.from(buf).toString("base64");
+const unb64 = (s) => new Uint8Array(Buffer.from(s, "base64"));
+async function deriveKey(password, salt, iter) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function encryptJson(obj, key, salt) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { v: 1, kdf: "pbkdf2-sha256", iter: KDF_ITER, salt: b64(salt), iv: b64(iv), ct: b64(ct) };
+}
+async function decryptJson(env_, password) {
+  if (env_?.v !== 1 || env_.kdf !== "pbkdf2-sha256") throw new Error("unsupported format");
+  const key = await deriveKey(password, unb64(env_.salt), env_.iter);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env_.iv) }, key, unb64(env_.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
 
 async function api(url, { token, method = "GET", body, headers = {} } = {}) {
   const res = await fetch(url, {
@@ -82,12 +109,17 @@ async function netlify() {
   const token = env.NETLIFY_TOKEN;
   if (!token) return { configured: false, sites: [], usage: null };
   const base = "https://api.netlify.com/api/v1";
-  const sites = (await safe("netlify sites", () => api(`${base}/sites?filter=all&per_page=100`, { token }), [])) || [];
+  const sites = [];
+  for (let page = 1; page <= 10; page++) {
+    const batch = (await safe("netlify sites", () => api(`${base}/sites?filter=all&per_page=100&page=${page}`, { token }), [])) || [];
+    sites.push(...batch);
+    if (batch.length < 100) break;
+  }
   const accounts = (await safe("netlify accounts", () => api(`${base}/accounts`, { token }), [])) || [];
 
   const usage = [];
   for (const acct of accounts) {
-    const bw = await safe(`netlify bandwidth ${acct.slug}`, () => api(`${base}/accounts/${acct.id}/bandwidth`, { token }));
+    const bw = await safe(`netlify bandwidth ${acct.slug}`, () => api(`${base}/accounts/${acct.slug}/bandwidth`, { token }));
     const builds = await safe(`netlify builds ${acct.slug}`, () => api(`${base}/${acct.slug}/builds/status`, { token }));
     usage.push({
       account: acct.name,
@@ -103,12 +135,13 @@ async function netlify() {
         : null,
       buildMinutes: builds?.minutes
         ? {
-            used: Math.round(builds.minutes.current ?? 0),
-            included: builds.minutes.included_minutes ?? limits.netlifyBuildMinutes ?? null,
+            used: Math.round(Number(builds.minutes.current ?? 0)),
+            included: builds.minutes.included_minutes != null ? Number(builds.minutes.included_minutes) : (limits.netlifyBuildMinutes ?? null),
             periodStart: builds.minutes.period_start_date ?? null,
             periodEnd: builds.minutes.period_end_date ?? null,
           }
         : null,
+      credits: acct.credits ?? null,
       dashboard: `https://app.netlify.com/teams/${acct.slug}/usage`,
     });
   }
@@ -156,7 +189,7 @@ async function vercel() {
   const sites = [];
   for (const p of projects) {
     const [deps, doms] = await Promise.all([
-      safe(`vercel deployments ${p.name}`, () => api(`${base}/v6/deployments?${q(`projectId=${p.id}&target=production&limit=1`)}`, { token }), { deployments: [] }),
+      safe(`vercel deployments ${p.name}`, () => api(`${base}/v7/deployments?${q(`projectId=${p.id}&target=production&limit=1`)}`, { token }), { deployments: [] }),
       safe(`vercel domains ${p.name}`, () => api(`${base}/v9/projects/${p.id}/domains?${q()}`, { token }), { domains: [] }),
     ]);
     const d = deps?.deployments?.[0];
@@ -179,7 +212,7 @@ async function vercel() {
   if (env.VERCEL_TEAM_ID) {
     const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
     const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
-    const res = await fetch(`${base}/v1/billing/charges?${q(`from=${from}&to=${to}`)}`, {
+    const res = await fetch(`${base}/v1/billing/charges?${q(`from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       signal: AbortSignal.timeout(20000),
     }).catch(() => null);
@@ -187,7 +220,7 @@ async function vercel() {
       const text = await res.text();
       const totals = {};
       // Response is JSONL (FOCUS records) or a JSON object; handle both.
-      const rows = text.trim().startsWith("{") && !text.includes("\n{") ? JSON.parse(text).records || [] : text.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+      const rows = text.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
       for (const r of rows) {
         const key = r.ServiceName || r.ChargeDescription || "Other";
         totals[key] = totals[key] || { quantity: 0, unit: r.ConsumedUnit || r.PricingUnit || "", cost: 0 };
@@ -223,7 +256,7 @@ async function supabase() {
         api(`${base}/projects/${ref}/database/query`, { token, method: "POST", body: { query: "select pg_database_size(current_database())::bigint as bytes" } })
       );
       dbBytes = rows?.[0]?.bytes != null ? Number(rows[0].bytes) : null;
-      const h = await safe(`supabase health ${p.name}`, () => api(`${base}/projects/${ref}/health?services=db&services=auth&services=rest&services=storage`, { token }));
+      const h = await safe(`supabase health ${p.name}`, () => api(`${base}/projects/${ref}/health?services=db,auth,rest,storage`, { token }));
       if (Array.isArray(h)) health = Object.fromEntries(h.map((s) => [s.name, s.healthy ? "healthy" : s.status || "unhealthy"]));
     }
     out.push({
@@ -284,9 +317,16 @@ for (const p of sb.projects) {
 
 // History
 await mkdir(OUT_DIR, { recursive: true });
-const histPath = path.join(OUT_DIR, "history.json");
+const histPath = path.join(OUT_DIR, "history.enc.json");
 let history = { runs: [] };
-if (existsSync(histPath)) history = JSON.parse(await readFile(histPath, "utf8"));
+if (existsSync(histPath)) {
+  try {
+    history = await decryptJson(JSON.parse(await readFile(histPath, "utf8")), PASSWORD);
+  } catch (e) {
+    console.warn(`[warn] could not decrypt previous history (password changed or file corrupt): ${e.message}. Starting fresh history.`);
+    history = { runs: [] };
+  }
+}
 const CODE = { up: "u", protected: "p", degraded: "g", down: "d", paused: "z" };
 const compact = Object.fromEntries(Object.entries(checks).map(([id, c]) => [id, [CODE[c.state] || "g", c.ms]]));
 history.runs.push({ t: now.toISOString(), r: compact });
@@ -321,6 +361,11 @@ const latest = {
   errors,
 };
 
-await writeFile(path.join(OUT_DIR, "latest.json"), JSON.stringify(latest, null, 2));
-await writeFile(histPath, JSON.stringify(history));
+const salt = crypto.getRandomValues(new Uint8Array(16));
+const key = await deriveKey(PASSWORD, salt, KDF_ITER);
+await writeFile(path.join(OUT_DIR, "latest.enc.json"), JSON.stringify(await encryptJson(latest, key, salt)));
+await writeFile(histPath, JSON.stringify(await encryptJson(history, key, salt)));
+// Never leave plaintext data behind.
+await rm(path.join(OUT_DIR, "latest.json"), { force: true });
+await rm(path.join(OUT_DIR, "history.json"), { force: true });
 console.log(`Checked ${targets.length} sites, ${sb.projects.length} Supabase projects, ${errors.length} warnings.`);

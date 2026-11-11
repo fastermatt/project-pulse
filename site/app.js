@@ -80,6 +80,11 @@
         const pct = bm.included ? (bm.used / bm.included) * 100 : null;
         body += meter("Build minutes", `${bm.used}`, bm.included ? `${bm.included}` : "", pct);
       }
+      const cr = a.credits;
+      if (cr && cr.included != null && cr.used != null) {
+        const used = Number(cr.used), inc = Number(cr.included);
+        body = meter("Credits", `${Math.round(used)}`, `${inc}`, inc ? (used / inc) * 100 : null, cr.next_usage_period_start ? `Resets in ${daysLeft(cr.next_usage_period_start)} days` : "") + body;
+      }
       if (!body) body = `<div class="note">Netlify didn't return usage numbers for this team (newer credit-based plans hide them from the API). Use the usage link for credits.</div>`;
       const nSites = (d.sites || []).filter((s) => s.platform === "netlify").length;
       cards.push(`<div class="card">${cardHead("netlify", "Netlify", `${a.plan || "Team"} · ${nSites} sites`, a.dashboard)}${body}</div>`);
@@ -228,12 +233,40 @@
     el.querySelector("ul").innerHTML = errs.map((e) => `<li>${esc(e)}</li>`).join("");
   }
 
-  async function load() {
+  // ---------- Encryption (PBKDF2-SHA256 -> AES-256-GCM) ----------
+  const unb64 = (b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+  const keyCache = new Map(); // salt+iter+password -> CryptoKey (memory only)
+  async function getKey(password, env_) {
+    const id = `${env_.iter}:${env_.salt}:${password}`;
+    if (!keyCache.has(id)) {
+      keyCache.clear(); // keep only the latest salt
+      const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+      keyCache.set(id, await crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: unb64(env_.salt), iterations: env_.iter }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]));
+    }
+    return keyCache.get(id);
+  }
+  async function decrypt(env_, password) {
+    if (env_?.v !== 1 || env_.kdf !== "pbkdf2-sha256") throw new Error("Unsupported data format");
+    const key = await getKey(password, env_);
+    let pt;
+    try { pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env_.iv) }, key, unb64(env_.ct)); }
+    catch { throw Object.assign(new Error("Wrong password"), { wrongPassword: true }); }
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  async function fetchEnc(name, bust) {
+    const r = await fetch(`data/${name}.enc.json${bust}`);
+    if (!r.ok) throw Object.assign(new Error(`${name} not found (HTTP ${r.status})`), { noData: true });
+    return r.json();
+  }
+
+  async function load(password) {
     const bust = `?t=${Math.floor(Date.now() / 60000)}`;
-    const [d, history] = await Promise.all([
-      fetch(`data/latest.json${bust}`).then((r) => r.json()),
-      fetch(`data/history.json${bust}`).then((r) => (r.ok ? r.json() : { runs: [] })).catch(() => ({ runs: [] })),
+    const [encLatest, encHistory] = await Promise.all([
+      fetchEnc("latest", bust),
+      fetchEnc("history", bust).catch(() => null),
     ]);
+    const d = await decrypt(encLatest, password);
+    const history = encHistory ? await decrypt(encHistory, password).catch((e) => { if (e.wrongPassword) return { runs: [] }; throw e; }) : { runs: [] };
     document.title = d.title || "Project Pulse";
     $("#title").textContent = d.title || "Project Pulse";
     const next = new Date(new Date(d.generatedAt).getTime() + (d.intervalMinutes || 60) * 60000);
@@ -246,6 +279,57 @@
     renderWarnings(d);
   }
 
-  load().catch((e) => { $("#hero").innerHTML = `<div><h2>No data yet</h2><p>Run the “Pulse” workflow once from the Actions tab. (${esc(e.message)})</p></div>`; });
-  setInterval(() => load().catch(() => {}), 5 * 60000);
+  // ---------- Lock screen ----------
+  const PASS_KEY = "pulse-pass";
+  let password = null;
+  const showApp = () => { $("#lock").hidden = true; $("#app").hidden = false; };
+  const showLock = () => { $("#app").hidden = true; $("#lock").hidden = false; $("#lock-pass").focus(); };
+  const noData = (e) => { $("#hero").innerHTML = `<div><h2>No data yet</h2><p>Run the “Pulse” workflow once from the Actions tab. (${esc(e.message)})</p></div>`; };
+
+  // Returns true when unlocked (or when there is no data to unlock yet).
+  async function unlock(pw) {
+    try {
+      await load(pw);
+    } catch (e) {
+      if (e.noData) { password = null; showApp(); noData(e); return true; }
+      if (e.wrongPassword) return false;
+      throw e;
+    }
+    password = pw;
+    showApp();
+    return true;
+  }
+
+  $("#lock-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const pw = $("#lock-pass").value;
+    if (!pw) return;
+    const btn = $("#lock-submit");
+    btn.disabled = true; btn.textContent = "Unlocking…";
+    $("#lock-error").hidden = true;
+    try {
+      const ok = await unlock(pw);
+      if (!ok) { $("#lock-error").textContent = "Wrong password"; $("#lock-error").hidden = false; $("#lock-pass").select(); }
+      else if (password && $("#lock-remember").checked) { try { localStorage.setItem(PASS_KEY, pw); } catch {} }
+    } catch (e) {
+      $("#lock-error").textContent = `Could not load data: ${e.message}`; $("#lock-error").hidden = false;
+    } finally { btn.disabled = false; btn.textContent = "Unlock"; }
+  });
+
+  $("#lock-btn").addEventListener("click", () => {
+    try { localStorage.removeItem(PASS_KEY); } catch {}
+    location.reload();
+  });
+
+  (async () => {
+    let saved = null;
+    try { saved = localStorage.getItem(PASS_KEY); } catch {}
+    if (saved) {
+      try { if (await unlock(saved)) return; } catch { return showLock(); }
+      try { localStorage.removeItem(PASS_KEY); } catch {}
+    }
+    showLock();
+  })();
+
+  setInterval(() => { if (password) load(password).catch(() => {}); }, 5 * 60000);
 })();

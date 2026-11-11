@@ -27,6 +27,7 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 2. **Add repository secrets** under Settings → Secrets and variables → Actions:
    | Secret | Where to get it |
    |---|---|
+   | `DASHBOARD_PASSWORD` | Any long passphrase you choose — needed to open the dashboard |
    | `NETLIFY_TOKEN` | Netlify → User settings → Applications → Personal access tokens |
    | `VERCEL_TOKEN` | vercel.com/account/settings/tokens. Scope it to your team. |
    | `VERCEL_TEAM_ID` | Vercel → Team Settings → General → Team ID (`team_…`) |
@@ -37,6 +38,10 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 5. Open `https://<you>.github.io/project-pulse/`.
 
 The workflow runs hourly at :17. To check more often, edit the cron in `.github/workflows/pulse.yml` (for example `*/30 * * * *`) and change `PULSE_INTERVAL_MINUTES` to match.
+
+## Privacy
+
+The Pages site is public, but all dashboard data is published only as AES-256-GCM encrypted files (`latest.enc.json`, `history.enc.json`) that the page decrypts in your browser with your `DASHBOARD_PASSWORD`. Without the password, a visitor sees only a lock screen. Your platform tokens never leave GitHub secrets. If you change the password, the old history can't be decrypted and starts fresh on the next run.
 
 ## Configure
 
@@ -50,5 +55,5 @@ Edit `pulse.config.json`:
 ## Notes
 
 - A Vercel URL that returns 401/403 because of Deployment Protection counts as **up (protected)**: the server responded.
-- History lives on the `gh-pages` branch. It's force-pushed as a single commit each run, so the repo doesn't grow.
+- Encrypted history lives on the `gh-pages` branch. It's force-pushed as a single commit each run, so the repo doesn't grow.
 - GitHub pauses scheduled workflows after 60 days with no repository activity. If that happens, click "Enable workflow" in the Actions tab.

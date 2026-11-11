@@ -9,7 +9,20 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="wrap">
+  <div id="lock" class="lock" hidden>
+    <form id="lock-form" class="lock-card" autocomplete="off">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M5 17h6l3-8 4 15 3-7h6"/></svg>
+        <h1>Project Pulse</h1>
+      </div>
+      <p class="lock-sub">This dashboard is private. Enter the password to view it.</p>
+      <input id="lock-pass" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
+      <div id="lock-error" class="lock-error" role="alert" hidden>Wrong password</div>
+      <label class="lock-remember"><input id="lock-remember" type="checkbox" checked> Remember on this device</label>
+      <button id="lock-submit" class="primary" type="submit">Unlock</button>
+    </form>
+  </div>
+  <div class="wrap" id="app" hidden>
     <header class="top">
       <div class="brand">
         <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M5 17h6l3-8 4 15 3-7h6"/></svg>
@@ -18,6 +31,7 @@
       <div class="meta">
         <span id="updated">Loading…</span>
         <button id="theme" class="ghost" type="button" aria-label="Toggle theme">◐</button>
+        <button id="lock-btn" class="ghost wide" type="button">Lock</button>
       </div>
     </header>
 

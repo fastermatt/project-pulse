@@ -179,3 +179,17 @@ h1 { white-space: nowrap; }
   .meta { font-size: 12px; }
   .repos { grid-template-columns: 1fr 1fr; }
 }
+
+/* Lock screen */
+[hidden] { display: none !important; }
+.lock { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.lock-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px; display: flex; flex-direction: column; gap: 14px; }
+.lock-sub { margin: 0; color: var(--muted); font-size: 14px; }
+.lock-card input[type="password"] { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.lock-card input[type="password"]:focus { outline: 2px solid var(--up); outline-offset: 1px; }
+.lock-error { color: var(--down); font-size: 13px; margin-top: -6px; }
+.lock-remember { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
+button.primary { background: var(--up); color: #fff; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+button.primary:hover { filter: brightness(.95); }
+button.primary:disabled { opacity: .6; cursor: default; }
+button.ghost.wide { width: auto; padding: 0 10px; font-size: 13px; }
