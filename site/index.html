@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Project Pulse</title>
   <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="dark light">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310b981'/%3E%3Cpath d='M5 17h6l3-8 4 15 3-7h6' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -22,68 +23,103 @@
       <button id="lock-submit" class="primary" type="submit">Unlock</button>
     </form>
   </div>
-  <div class="wrap" id="app" hidden>
+
+  <div id="app" hidden>
     <header class="top">
-      <div class="brand">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M5 17h6l3-8 4 15 3-7h6"/></svg>
-        <h1 id="title">Project Pulse</h1>
-      </div>
-      <div class="meta">
-        <span id="updated">Loading…</span>
-        <button id="theme" class="ghost" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
-        <button id="lock-btn" class="ghost wide" type="button">Lock</button>
+      <div class="top-in">
+        <div class="brand">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M5 17h6l3-8 4 15 3-7h6"/></svg>
+          <h1 id="title">Project Pulse</h1>
+        </div>
+        <nav id="tabs" class="tabs" role="tablist" aria-label="Dashboard sections">
+          <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
+          <button type="button" role="tab" id="tab-traffic" data-tab="traffic" aria-selected="false" aria-controls="panel-traffic" tabindex="-1">Traffic</button>
+          <button type="button" role="tab" id="tab-links" data-tab="links" aria-selected="false" aria-controls="panel-links" tabindex="-1">Links</button>
+          <button type="button" role="tab" id="tab-archive" data-tab="archive" aria-selected="false" aria-controls="panel-archive" tabindex="-1">Archive<span id="tab-archive-count" class="tcount num" hidden></span></button>
+        </nav>
+        <div class="meta">
+          <span id="updated">Loading…</span>
+          <div class="btns">
+            <button id="theme" class="ghost" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+            <button id="lock-btn" class="ghost wide" type="button">Lock</button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <section id="hero" class="hero" aria-live="polite" aria-label="Health at a glance"></section>
+    <main class="wrap">
+      <!-- Overview -->
+      <div id="panel-overview" class="panel" role="tabpanel" aria-labelledby="tab-overview">
+        <section id="hero" class="hero" aria-live="polite" aria-label="Health at a glance"></section>
 
-    <section id="attention-section" hidden>
-      <h2 class="section-title">Needs attention</h2>
-      <div id="attention" class="attn-list"></div>
-    </section>
+        <section id="attention-section" hidden>
+          <h2 class="section-title">Needs attention</h2>
+          <div id="attention" class="attn-list"></div>
+        </section>
 
-    <section id="apps-section">
-      <div class="section-head">
-        <h2 class="section-title">Apps</h2>
-        <div class="app-tools">
-          <div id="app-filters" class="filters" role="group" aria-label="Filter apps"></div>
-          <label class="search"><span class="sr">Search apps</span>
+        <section id="apps-section">
+          <div class="section-head">
+            <h2 class="section-title">Apps</h2>
+            <div class="app-tools">
+              <div id="app-filters" class="filters" role="group" aria-label="Filter apps"></div>
+              <label class="search"><span class="sr">Search apps</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+                <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
+              </label>
+            </div>
+          </div>
+          <div id="apps" class="apps"></div>
+        </section>
+
+        <section>
+          <h2 class="section-title">Usage &amp; limits</h2>
+          <div id="usage" class="usage-grid"></div>
+        </section>
+
+        <section>
+          <details id="checks" class="checks">
+            <summary><span>All checks</span><span id="checks-count" class="count num"></span></summary>
+            <div class="checks-body">
+              <div id="filters" class="filters" role="tablist"></div>
+              <div id="sites" class="sites"></div>
+            </div>
+          </details>
+        </section>
+      </div>
+
+      <!-- Traffic -->
+      <div id="panel-traffic" class="panel" role="tabpanel" aria-labelledby="tab-traffic" hidden>
+        <div class="page-head"><h2>Who's visiting</h2><p>Repo traffic, form submissions and signed-up users across your stuff.</p></div>
+        <div id="traffic"></div>
+      </div>
+
+      <!-- Links -->
+      <div id="panel-links" class="panel" role="tabpanel" aria-labelledby="tab-links" hidden>
+        <div class="page-head">
+          <div><h2>Everything you own</h2><p>Sites, dashboards, repos and accounts in one place.</p></div>
+          <label class="search wide-search"><span class="sr">Filter links</span>
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-            <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
+            <input id="link-search" type="search" placeholder="Filter links" autocomplete="off" spellcheck="false">
           </label>
         </div>
+        <div id="links"></div>
       </div>
-      <div id="apps" class="apps"></div>
-    </section>
 
-    <section>
-      <h2 class="section-title">Usage &amp; limits</h2>
-      <div id="usage" class="usage-grid"></div>
-    </section>
+      <!-- Archive -->
+      <div id="panel-archive" class="panel" role="tabpanel" aria-labelledby="tab-archive" hidden>
+        <div class="page-head"><h2>Cleanup</h2><p>These are hidden from the dashboard and not monitored. Delete them for good when you're sure.</p></div>
+        <div id="archive"></div>
+      </div>
 
-    <section>
-      <details id="checks" class="checks">
-        <summary><span>All checks</span><span id="checks-count" class="count num"></span></summary>
-        <div class="checks-body">
-          <div id="filters" class="filters" role="tablist"></div>
-          <div id="sites" class="sites"></div>
-        </div>
+      <details id="warnings" class="warnings" hidden>
+        <summary></summary>
+        <ul></ul>
       </details>
-    </section>
 
-    <section id="repos-section" hidden>
-      <h2 class="section-title">Repos</h2>
-      <div id="repos" class="repos"></div>
-    </section>
-
-    <details id="warnings" class="warnings" hidden>
-      <summary></summary>
-      <ul></ul>
-    </details>
-
-    <footer class="foot">
-      Checks run every three hours on GitHub Actions. Uptime reflects recorded checks, not continuous monitoring. Usage comes from provider APIs; see each provider's dashboard for current billing details.
-    </footer>
+      <footer class="foot">
+        Checks run every three hours on GitHub Actions. Uptime reflects recorded checks, not continuous monitoring. Usage comes from provider APIs; see each provider's dashboard for current billing details.
+      </footer>
+    </main>
   </div>
   <script src="app.js"></script>
 </body>
