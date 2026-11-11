@@ -6,120 +6,130 @@
   <title>Project Pulse</title>
   <meta name="robots" content="noindex">
   <meta name="color-scheme" content="dark light">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310b981'/%3E%3Cpath d='M5 17h6l3-8 4 15 3-7h6' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230A66D9'/%3E%3Cpath d='M5 17h6l3-8 4 15 3-7h6' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="lock" class="lock" hidden>
     <form id="lock-form" class="lock-card" autocomplete="off">
-      <div class="brand">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M5 17h6l3-8 4 15 3-7h6"/></svg>
-        <h1>Project Pulse</h1>
-      </div>
-      <p class="lock-sub">This dashboard is private. Enter the password to view it.</p>
+      <div class="app-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h6l3-8 4 15 3-7h8"/></svg></div>
+      <h1>Project Pulse</h1>
+      <p class="lock-sub">Enter the password to unlock</p>
       <input id="lock-pass" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
       <div id="lock-error" class="lock-error" role="alert" hidden>Wrong password</div>
-      <label class="lock-remember"><input id="lock-remember" type="checkbox"> Remember on this device</label>
-      <button id="lock-submit" class="primary" type="submit">Unlock</button>
+      <label class="mcheck lock-remember"><input id="lock-remember" type="checkbox"><span>Remember on this device</span></label>
+      <button id="lock-submit" class="btn default" type="submit">Unlock</button>
     </form>
   </div>
 
   <div id="app" hidden>
-    <header class="top">
-      <div class="top-in">
-        <div class="brand">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M5 17h6l3-8 4 15 3-7h6"/></svg>
-          <h1 id="title">Project Pulse</h1>
+    <div class="window">
+      <header class="toolbar">
+        <div class="tb-left">
+          <div class="lights" aria-hidden="true"><i class="l-r"></i><i class="l-y"></i><i class="l-g"></i></div>
+          <div class="wtitle"><b id="title">Project Pulse</b><span id="updated">Loading…</span></div>
         </div>
-        <nav id="tabs" class="tabs" role="tablist" aria-label="Dashboard sections">
+        <nav id="tabs" class="seg tabs" role="tablist" aria-label="Dashboard sections">
           <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
           <button type="button" role="tab" id="tab-traffic" data-tab="traffic" aria-selected="false" aria-controls="panel-traffic" tabindex="-1">Traffic</button>
           <button type="button" role="tab" id="tab-links" data-tab="links" aria-selected="false" aria-controls="panel-links" tabindex="-1">Links</button>
           <button type="button" role="tab" id="tab-archive" data-tab="archive" aria-selected="false" aria-controls="panel-archive" tabindex="-1">Archive<span id="tab-archive-count" class="tcount num" hidden></span></button>
         </nav>
-        <div class="meta">
-          <span id="updated">Loading…</span>
-          <div class="btns">
-            <button id="theme" class="ghost" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
-            <button id="lock-btn" class="ghost wide" type="button">Lock</button>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <main class="wrap">
-      <!-- Overview -->
-      <div id="panel-overview" class="panel" role="tabpanel" aria-labelledby="tab-overview">
-        <section id="hero" class="hero" aria-live="polite" aria-label="Health at a glance"></section>
-
-        <section id="attention-section" hidden>
-          <h2 class="section-title">Needs attention</h2>
-          <div id="attention" class="attn-list"></div>
-        </section>
-
-        <section id="apps-section">
-          <div class="section-head">
-            <h2 class="section-title">Apps</h2>
-            <div class="app-tools">
-              <div id="app-filters" class="filters" role="group" aria-label="Filter apps"></div>
-              <label class="search"><span class="sr">Search apps</span>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-                <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
-              </label>
-            </div>
-          </div>
-          <div id="apps" class="apps"></div>
-        </section>
-
-        <section>
-          <h2 class="section-title">Usage &amp; limits</h2>
-          <div id="usage" class="usage-grid"></div>
-        </section>
-
-        <section>
-          <details id="checks" class="checks">
-            <summary><span>All checks</span><span id="checks-count" class="count num"></span></summary>
-            <div class="checks-body">
-              <div id="filters" class="filters" role="tablist"></div>
-              <div id="sites" class="sites"></div>
-            </div>
-          </details>
-        </section>
-      </div>
-
-      <!-- Traffic -->
-      <div id="panel-traffic" class="panel" role="tabpanel" aria-labelledby="tab-traffic" hidden>
-        <div class="page-head"><h2>Who's visiting</h2><p>Repo traffic, form submissions and signed-up users across your stuff.</p></div>
-        <div id="traffic"></div>
-      </div>
-
-      <!-- Links -->
-      <div id="panel-links" class="panel" role="tabpanel" aria-labelledby="tab-links" hidden>
-        <div class="page-head">
-          <div><h2>Everything you own</h2><p>Sites, dashboards, repos and accounts in one place.</p></div>
-          <label class="search wide-search"><span class="sr">Filter links</span>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
-            <input id="link-search" type="search" placeholder="Filter links" autocomplete="off" spellcheck="false">
+        <div class="tools">
+          <label class="msearch"><span class="sr">Search</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.2 10.2L14 14"/></svg>
+            <input id="app-search" type="search" placeholder="Search apps" autocomplete="off" spellcheck="false">
           </label>
+          <button id="theme" class="btn icon" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor"/></svg></button>
+          <button id="lock-btn" class="btn" type="button">Lock</button>
         </div>
-        <div id="links"></div>
+      </header>
+
+      <div class="wbody">
+        <aside class="sidebar" aria-label="Navigation">
+          <div class="s-brand"><span class="app-icon sm"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h6l3-8 4 15 3-7h8"/></svg></span><b>Project Pulse</b></div>
+          <label class="msearch side-search"><span class="sr">Search</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.2 10.2L14 14"/></svg>
+            <input id="side-search" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
+            <kbd aria-hidden="true">&#8984;K</kbd>
+          </label>
+          <nav id="side">
+            <div class="sh">Monitor</div>
+            <button type="button" class="srow" data-tab="overview"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg><span class="sl">Overview</span><span id="sb-overview" class="sbadge num" hidden></span></button>
+            <button type="button" class="srow" data-tab="traffic"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12"/><path d="M2.5 10.5l3.2-4 3 2.3L13.5 3.5"/></svg><span class="sl">Traffic</span></button>
+            <div class="sh">Manage</div>
+            <button type="button" class="srow" data-tab="links"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 9.3a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.7.7"/><path d="M9.3 6.7a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.7-.7"/></svg><span class="sl">Links</span></button>
+            <button type="button" class="srow" data-tab="archive"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.2" rx="1"/><path d="M3.2 5.7v6.8a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V5.7"/><path d="M6.5 8.8h3"/></svg><span class="sl">Archive</span><span id="sb-archive" class="sbadge num" hidden></span></button>
+          </nav>
+          <div class="sh">Platforms</div>
+          <div id="side-plat" class="side-plat"></div>
+        </aside>
+
+        <main class="wrap">
+          <!-- Overview -->
+          <div id="panel-overview" class="panel" role="tabpanel" aria-labelledby="tab-overview">
+            <div class="bento">
+              <div id="p-kpi" class="kpirow span12" aria-label="Key numbers"></div>
+              <section id="p-health" class="pn span4" aria-label="Health score"></section>
+              <section id="p-inc" class="pn span5" aria-label="Incidents"></section>
+              <section id="p-avail" class="pn span3" aria-label="Availability"></section>
+              <section id="p-matrix" class="pn span12" aria-label="Status matrix"></section>
+              <section id="p-resp" class="pn span8" aria-label="Response time"></section>
+              <section id="p-cap" class="pn span4" aria-label="Capacity">
+                <div class="pn-h"><h2>Capacity</h2></div>
+                <div id="usage" class="usage"></div>
+              </section>
+              <section id="apps-section" class="pn span12" aria-label="Apps">
+                <div class="pn-h">
+                  <h2>Apps</h2><span id="apps-count" class="count num"></span>
+                  <div id="app-filters" class="seg sm" role="group" aria-label="Filter apps"></div>
+                </div>
+                <div id="apps" class="apps"></div>
+              </section>
+              <section class="pn span12" aria-label="All checks">
+                <details id="checks" class="checks">
+                  <summary><span class="chev" aria-hidden="true"></span><h2>All checks</h2><span id="checks-count" class="count num"></span></summary>
+                  <div class="checks-body">
+                    <div id="filters" class="seg sm" role="tablist"></div>
+                    <div id="sites" class="sites"></div>
+                  </div>
+                </details>
+              </section>
+            </div>
+          </div>
+
+          <!-- Traffic -->
+          <div id="panel-traffic" class="panel" role="tabpanel" aria-labelledby="tab-traffic" hidden>
+            <div id="traffic"></div>
+          </div>
+
+          <!-- Links -->
+          <div id="panel-links" class="panel" role="tabpanel" aria-labelledby="tab-links" hidden>
+            <div id="links"></div>
+          </div>
+
+          <!-- Archive -->
+          <div id="panel-archive" class="panel" role="tabpanel" aria-labelledby="tab-archive" hidden>
+            <div id="archive"></div>
+          </div>
+
+          <details id="warnings" class="warnings" hidden>
+            <summary></summary>
+            <ul></ul>
+          </details>
+
+          <footer class="foot">
+            Checks run every three hours on GitHub Actions. Uptime reflects recorded checks, not continuous monitoring. Usage comes from provider APIs; see each provider's dashboard for billing.
+          </footer>
+        </main>
       </div>
-
-      <!-- Archive -->
-      <div id="panel-archive" class="panel" role="tabpanel" aria-labelledby="tab-archive" hidden>
-        <div class="page-head"><h2>Cleanup</h2><p>These are hidden from the dashboard and not monitored. Delete them for good when you're sure.</p></div>
-        <div id="archive"></div>
-      </div>
-
-      <details id="warnings" class="warnings" hidden>
-        <summary></summary>
-        <ul></ul>
-      </details>
-
-      <footer class="foot">
-        Checks run every three hours on GitHub Actions. Uptime reflects recorded checks, not continuous monitoring. Usage comes from provider APIs; see each provider's dashboard for current billing details.
-      </footer>
-    </main>
+    </div>
+  <nav class="bbar" aria-label="Sections">
+    <button type="button" data-tab="overview"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg><span>Overview</span></button>
+    <button type="button" data-tab="traffic"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12"/><path d="M2.5 10.5l3.2-4 3 2.3L13.5 3.5"/></svg><span>Traffic</span></button>
+    <button type="button" data-tab="links"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 9.3a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.7.7"/><path d="M9.3 6.7a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.7-.7"/></svg><span>Links</span></button>
+    <button type="button" data-tab="archive"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="3.2" rx="1"/><path d="M3.2 5.7v6.8a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V5.7"/><path d="M6.5 8.8h3"/></svg><span>Archive</span></button>
+  </nav>
   </div>
   <script src="app.js"></script>
 </body>
