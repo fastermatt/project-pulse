@@ -18,7 +18,7 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 |---|---|---|
 | Netlify | Management API reads + 1 `HEAD` request per site | API: no. `HEAD`: a few hundred bytes (~0.5 MB/month total) |
 | Vercel | Management API reads + 1 `HEAD` per project | API: no. `HEAD`: ~720 edge requests/project/month out of 1M |
-| Supabase | Management API reads + 1 catalog query (`pg_database_size`) per **active** project | No egress, and paused projects aren't woken |
+| Supabase | Management API reads + 1 read-only catalog query (`pg_database_size`) per **active** project | Tiny API responses; paused projects are skipped |
 | GitHub | ~1 minute of Actions per run | Free for public repos |
 
 ## Setup (about 5 minutes)
@@ -27,21 +27,21 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
 2. **Add repository secrets** under Settings → Secrets and variables → Actions:
    | Secret | Where to get it |
    |---|---|
-   | `DASHBOARD_PASSWORD` | Any long passphrase you choose — needed to open the dashboard |
+   | `DASHBOARD_PASSWORD` | A unique passphrase of at least 16 characters — needed to open the dashboard |
    | `NETLIFY_TOKEN` | Netlify → User settings → Applications → Personal access tokens |
    | `VERCEL_TOKEN` | vercel.com/account/settings/tokens. Scope it to your team. |
    | `VERCEL_TEAM_ID` | Vercel → Team Settings → General → Team ID (`team_…`) |
    | `SUPABASE_TOKEN` | supabase.com/dashboard/account/tokens |
    | `GH_REPOS_TOKEN` *(optional)* | A fine-grained token with read-only "Metadata" access. Without it, only public repos are listed. |
-3. **Run it once** from Actions → Pulse → Run workflow. This creates a `gh-pages` branch.
-4. **Turn on Pages** under Settings → Pages → Source: *Deploy from a branch* → `gh-pages` / root.
+3. **Enable Pages** under Settings → Pages → Source: *GitHub Actions*.
+4. **Run it once** from Actions → Pulse → Run workflow. This saves encrypted history to `gh-pages` and explicitly deploys the site.
 5. Open `https://<you>.github.io/project-pulse/`.
 
-The workflow runs hourly at :17. To check more often, edit the cron in `.github/workflows/pulse.yml` (for example `*/30 * * * *`) and change `PULSE_INTERVAL_MINUTES` to match.
+The workflow runs hourly at :17 UTC. To check more often, edit the cron in `.github/workflows/pulse.yml` (for example `*/30 * * * *`) and change `PULSE_INTERVAL_MINUTES` to match.
 
 ## Privacy
 
-The Pages site is public, but all dashboard data is published only as AES-256-GCM encrypted files (`latest.enc.json`, `history.enc.json`) that the page decrypts in your browser with your `DASHBOARD_PASSWORD`. Without the password, a visitor sees only a lock screen. Your platform tokens never leave GitHub secrets. If you change the password, the old history can't be decrypted and starts fresh on the next run.
+The Pages site is public, but all dashboard data is published only as AES-256-GCM encrypted files (`latest.enc.json`, `history.enc.json`) that the page decrypts in your browser with your `DASHBOARD_PASSWORD`. Without the password, a visitor sees only a lock screen. Provider credentials are read only by the collector in GitHub Actions and sent to the matching provider APIs. They are never included in published data. Public workflow logs contain counts only. If you change the password, the old history can't be decrypted and starts fresh on the next run.
 
 ## Configure
 
@@ -57,3 +57,12 @@ Edit `pulse.config.json`:
 - A Vercel URL that returns 401/403 because of Deployment Protection counts as **up (protected)**: the server responded.
 - Encrypted history lives on the `gh-pages` branch. It's force-pushed as a single commit each run, so the repo doesn't grow.
 - GitHub pauses scheduled workflows after 60 days with no repository activity. If that happens, click "Enable workflow" in the Actions tab.
+
+
+## Validation
+
+Run `node --test tests/*.test.mjs` before release. The tests use fake provider responses and verify encryption, wrong-password/tampered-data rejection, history retention, missing-password failure, and log redaction. `node scripts/verify-public.mjs` enforces a published-file allowlist and encrypted data envelopes.
+
+Use dedicated provider tokens for scheduled runs; a Vercel CLI OAuth access token expires and is unsuitable for GitHub secrets. Supabase requires project visibility/health and Database Read access; the collector uses the read-only query endpoint. Keep token master copies in your secret manager, not this repository.
+
+The uptime percentage is the fraction of successful recorded checks, not continuous availability. Unknown intervals are not evidence of uptime. A 401/403 is classified as protected, which does not prove the app works after sign-in. Plan quotas are configured defaults unless returned by the provider; check the linked billing dashboard before making cost decisions.

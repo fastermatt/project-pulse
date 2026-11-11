@@ -11,8 +11,9 @@
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = process.env.PULSE_OUT_DIR || path.join(ROOT, "site", "data");
 const config = JSON.parse(await readFile(path.join(ROOT, "pulse.config.json"), "utf8"));
 const limits = config.limits || {};
@@ -23,8 +24,8 @@ const errors = [];
 const now = new Date();
 
 const PASSWORD = env.DASHBOARD_PASSWORD;
-if (!PASSWORD) {
-  console.error("DASHBOARD_PASSWORD is not set. Add it as a repository secret: the dashboard data is encrypted with it, and nothing is written without it.");
+if (!PASSWORD || PASSWORD.length < 16) {
+  console.error("DASHBOARD_PASSWORD must contain at least 16 characters. Nothing is published without a strong dashboard password.");
   process.exit(1);
 }
 
@@ -59,11 +60,12 @@ async function api(url, { token, method = "GET", body, headers = {} } = {}) {
       ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
+    redirect: "error",
     signal: AbortSignal.timeout(20000),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${url.split("?")[0]} ${text.slice(0, 160)}`);
+    // Provider error bodies can contain credentials or private request details.
+    throw new Error(`HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -73,7 +75,7 @@ async function safe(label, fn, fallback = null) {
     return await fn();
   } catch (e) {
     errors.push(`${label}: ${e.message}`);
-    console.warn(`[warn] ${label}: ${e.message}`);
+    // Details belong only in the encrypted dashboard, never public Actions logs.
     return fallback;
   }
 }
@@ -253,7 +255,7 @@ async function supabase() {
     if (active) {
       // One tiny catalog query; doesn't touch your tables or egress quota.
       const rows = await safe(`supabase db size ${p.name}`, () =>
-        api(`${base}/projects/${ref}/database/query`, { token, method: "POST", body: { query: "select pg_database_size(current_database())::bigint as bytes" } })
+        api(`${base}/projects/${ref}/database/query/read-only`, { token, method: "POST", body: { query: "select pg_catalog.pg_database_size(pg_catalog.current_database())::bigint as bytes" } })
       );
       dbBytes = rows?.[0]?.bytes != null ? Number(rows[0].bytes) : null;
       const h = await safe(`supabase health ${p.name}`, () => api(`${base}/projects/${ref}/health?services=db,auth,rest,storage`, { token }));
@@ -294,7 +296,12 @@ async function github() {
 }
 
 // ---------- Run ----------
-const [nl, vc, sb, gh] = await Promise.all([netlify(), vercel(), supabase(), github()]);
+const [nl, vc, sb, gh] = await Promise.all([
+  safe("Netlify collection", netlify, { configured: Boolean(env.NETLIFY_TOKEN), sites: [], usage: [] }),
+  safe("Vercel collection", vercel, { configured: Boolean(env.VERCEL_TOKEN), sites: [], usage: null }),
+  safe("Supabase collection", supabase, { configured: Boolean(env.SUPABASE_TOKEN), projects: [] }),
+  safe("GitHub collection", github, { configured: true, repos: [] }),
+]);
 
 const targets = [
   ...nl.sites.filter((s) => s.url && s.deploy.state !== "none"),

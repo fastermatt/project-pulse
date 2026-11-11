@@ -219,6 +219,7 @@
 
   function renderRepos(d) {
     const repos = d.github?.repos || [];
+    $("#repos-section").hidden = !repos.length;
     if (!repos.length) return;
     $("#repos-section").hidden = false;
     $("#repos").innerHTML = repos.slice(0, 12).map((r) => `<a class="repo" href="${esc(r.url)}" target="_blank" rel="noopener">
@@ -227,6 +228,7 @@
 
   function renderWarnings(d) {
     const errs = d.errors || [];
+    $("#warnings").hidden = !errs.length;
     if (!errs.length) return;
     const el = $("#warnings"); el.hidden = false;
     el.querySelector("summary").textContent = `${errs.length} collector warning${errs.length > 1 ? "s" : ""}`;
@@ -270,9 +272,14 @@
     document.title = d.title || "Project Pulse";
     $("#title").textContent = d.title || "Project Pulse";
     const next = new Date(new Date(d.generatedAt).getTime() + (d.intervalMinutes || 60) * 60000);
-    $("#updated").innerHTML = `Updated <b>${ago(d.generatedAt)}</b> · next ~${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    const stale = Date.now() - new Date(d.generatedAt).getTime() > (d.intervalMinutes || 60) * 120000;
+    $("#updated").innerHTML = `Updated <b>${ago(d.generatedAt)}</b> · ${stale ? 'Refresh overdue — showing last recorded data' : `next ~${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}`;
     $("#updated").title = new Date(d.generatedAt).toLocaleString();
     renderHero(d, history);
+    if (stale) {
+      $("#hero h2").textContent = 'Monitoring data is out of date';
+      $("#hero p").textContent = 'The scheduled collector has missed its expected refresh. These are the last recorded checks.';
+    }
     renderUsage(d);
     renderSites(d, history);
     renderRepos(d);

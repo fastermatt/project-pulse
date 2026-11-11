@@ -18,7 +18,7 @@
       <p class="lock-sub">This dashboard is private. Enter the password to view it.</p>
       <input id="lock-pass" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
       <div id="lock-error" class="lock-error" role="alert" hidden>Wrong password</div>
-      <label class="lock-remember"><input id="lock-remember" type="checkbox" checked> Remember on this device</label>
+      <label class="lock-remember"><input id="lock-remember" type="checkbox"> Remember on this device</label>
       <button id="lock-submit" class="primary" type="submit">Unlock</button>
     </form>
   </div>
@@ -61,7 +61,7 @@
     </details>
 
     <footer class="foot">
-      Runs on GitHub Actions. One HEAD request per site per hour; usage numbers come from management APIs, which don't count against your Netlify, Vercel or Supabase quotas.
+      Hourly checks run on GitHub Actions. Uptime reflects recorded checks, not continuous monitoring. Usage comes from provider APIs; see each provider's dashboard for current billing details.
     </footer>
   </div>
   <script src="app.js"></script>
