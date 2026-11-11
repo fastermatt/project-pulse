@@ -9,5 +9,12 @@
   },
   "exclude": [],
   "extraChecks": [],
-  "githubOwner": "fastermatt"
+  "githubOwner": "fastermatt",
+  "groups": {
+    "Family": ["app-family-controls", "family-tasks-deploy", "family-quest", "family-quest-prod"],
+    "ABQ Unplugged": ["abq-unplugged-v2", "abq-unplugged"],
+    "ShootForms": ["readyrelease"]
+  },
+  "archive": ["family-quest-prod", "harmonious-dodol-de7713", "fastidious-pasca-123116", "gleeful-smakager-311cf9", "fastermatt", "COFFinder", "Small Batch Scout"],
+  "links": []
 }

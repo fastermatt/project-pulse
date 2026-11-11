@@ -32,7 +32,7 @@ It runs on **free GitHub Actions + GitHub Pages**, so it uses none of your Netli
    | `VERCEL_TOKEN` | vercel.com/account/settings/tokens. Scope it to your team. |
    | `VERCEL_TEAM_ID` | Vercel → Team Settings → General → Team ID (`team_…`) |
    | `SUPABASE_TOKEN` | supabase.com/dashboard/account/tokens |
-   | `GH_REPOS_TOKEN` *(optional)* | A fine-grained token with read-only "Metadata" access. Without it, only public repos are listed. |
+   | `GH_REPOS_TOKEN` *(optional)* | A fine-grained token for **All repositories** with read-only "Administration" and read-only "Metadata". Lists private repos and enables traffic (views, clones, referrers, popular paths); traffic history is kept beyond GitHub's 14-day window. Without it, only public repos are listed and traffic is skipped. |
 3. **Enable Pages** under Settings → Pages → Source: *GitHub Actions*.
 4. **Run it once** from Actions → Pulse → Run workflow. This saves encrypted history to `gh-pages` and explicitly deploys the site.
 5. Open `https://<you>.github.io/project-pulse/`.
@@ -51,6 +51,9 @@ Edit `pulse.config.json`:
 - `exclude`: project or site names to hide, such as old test sites.
 - `extraChecks`: other URLs to monitor, as `{ "name": "My API", "url": "https://…" }`.
 - `historyDays`: how much history to keep (default 30).
+- `groups`: `{ "Group name": ["project", "site", "repo", ...] }` to cluster related items. Names match case-insensitively.
+- `archive`: names (Netlify sites, Vercel projects, Supabase projects, repos; case-insensitive) to treat as archived. Archived items are not uptime-checked and not queried beyond the platform listing, so they use no quota. They move from `sites` to `archived`, each with a dashboard link and a delete-settings link.
+- `links`: extra dashboard links as `{ "label": "Docs", "url": "https://…", "group": "Family" }`.
 
 ## Notes
 

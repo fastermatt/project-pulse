@@ -17,6 +17,9 @@ const OUT_DIR = process.env.PULSE_OUT_DIR || path.join(ROOT, "site", "data");
 const config = JSON.parse(await readFile(path.join(ROOT, "pulse.config.json"), "utf8"));
 const limits = config.limits || {};
 const exclude = new Set((config.exclude || []).map((s) => s.toLowerCase()));
+const archiveSet = new Set((config.archive || []).map((s) => s.toLowerCase()));
+const isArchived = (name) => archiveSet.has(String(name || "").toLowerCase());
+const isoOrNull = (ms) => (ms ? new Date(ms).toISOString() : null);
 
 const env = process.env;
 const errors = [];
@@ -79,6 +82,14 @@ async function safe(label, fn, fallback = null) {
   }
 }
 
+// Run fn over items with at most n in flight.
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) await fn(items[i++]);
+  }));
+}
+
 // ---------- Uptime ----------
 async function check(url) {
   const started = performance.now();
@@ -108,7 +119,7 @@ async function check(url) {
 // ---------- Netlify ----------
 async function netlify() {
   const token = env.NETLIFY_TOKEN;
-  if (!token) return { configured: false, sites: [], usage: null };
+  if (!token) return { configured: false, sites: [], usage: null, archived: [], forms: [], teamSlug: null };
   const base = "https://api.netlify.com/api/v1";
   const sites = [];
   for (let page = 1; page <= 10; page++) {
@@ -147,11 +158,46 @@ async function netlify() {
     });
   }
 
+  const kept = sites.filter((s) => !exclude.has(s.name.toLowerCase()));
+  const activeSites = kept.filter((s) => !isArchived(s.name));
+  const archived = kept
+    .filter((s) => isArchived(s.name))
+    .map((s) => ({
+      name: s.name,
+      platform: "netlify",
+      url: s.ssl_url || s.url || null,
+      dashboard: s.admin_url || `https://app.netlify.com/projects/${s.name}`,
+      deleteUrl: `https://app.netlify.com/projects/${s.name}/configuration/general#danger-zone`,
+      lastDeployAt: s.published_deploy?.published_at || s.updated_at || null,
+      status: s.published_deploy?.state || (s.published_deploy ? "ready" : "none"),
+    }));
+
+  // Forms: one API call per active (non-archived) site.
+  const forms = [];
+  const formResults = new Array(activeSites.length);
+  await pool(activeSites, 4, async (s) => {
+    const list = await safe(`netlify forms ${s.name}`, () => api(`${base}/sites/${s.id}/forms`, { token }), []);
+    formResults[activeSites.indexOf(s)] = Array.isArray(list) ? list : [];
+  });
+  activeSites.forEach((s, i) => {
+    for (const f of formResults[i] || []) {
+      forms.push({
+        site: s.name,
+        form: f.name,
+        submissions: Number(f.submission_count ?? 0),
+        lastAt: f.last_submission_at ?? null,
+        dashboard: `https://app.netlify.com/projects/${s.name}/forms`,
+      });
+    }
+  });
+
   return {
     configured: true,
     usage,
-    sites: sites
-      .filter((s) => !exclude.has(s.name.toLowerCase()))
+    archived,
+    forms,
+    teamSlug: accounts[0]?.slug || null,
+    sites: activeSites
       .map((s) => ({
         id: `netlify:${s.id}`,
         name: s.name,
@@ -178,14 +224,31 @@ function pickVercelDomain(domains, teamSlugish) {
 
 async function vercel() {
   const token = env.VERCEL_TOKEN;
-  if (!token) return { configured: false, sites: [], usage: null };
+  if (!token) return { configured: false, sites: [], usage: null, archived: [], teamSlug: null };
   const base = "https://api.vercel.com";
   const team = env.VERCEL_TEAM_ID ? `teamId=${encodeURIComponent(env.VERCEL_TEAM_ID)}` : "";
   const q = (extra = "") => [team, extra].filter(Boolean).join("&");
 
   const teamInfo = env.VERCEL_TEAM_ID ? await safe("vercel team", () => api(`${base}/v2/teams/${env.VERCEL_TEAM_ID}`, { token })) : null;
   const projectsRes = await safe("vercel projects", () => api(`${base}/v10/projects?${q("limit=100")}`, { token }), { projects: [] });
-  const projects = (projectsRes?.projects || []).filter((p) => !exclude.has(p.name.toLowerCase()));
+  const allProjects = (projectsRes?.projects || []).filter((p) => !exclude.has(p.name.toLowerCase()));
+  const projects = allProjects.filter((p) => !isArchived(p.name));
+  // Archived projects: listing data only, no per-project requests.
+  const archived = allProjects
+    .filter((p) => isArchived(p.name))
+    .map((p) => {
+      const alias = p.targets?.production?.alias?.[0] || p.alias?.[0]?.domain || null;
+      const ld = p.latestDeployments?.[0];
+      return {
+        name: p.name,
+        platform: "vercel",
+        url: alias ? `https://${alias}` : null,
+        dashboard: teamInfo?.slug ? `https://vercel.com/${teamInfo.slug}/${p.name}` : `https://vercel.com/dashboard`,
+        deleteUrl: teamInfo?.slug ? `https://vercel.com/${teamInfo.slug}/${p.name}/settings/general#delete-project` : `https://vercel.com/dashboard`,
+        lastDeployAt: isoOrNull(ld?.createdAt || p.updatedAt),
+        status: (ld?.readyState || ld?.state || "").toLowerCase() || null,
+      };
+    });
 
   const sites = [];
   for (const p of projects) {
@@ -235,19 +298,35 @@ async function vercel() {
   }
   usage = { ...(usage || {}), dashboard: teamInfo?.slug ? `https://vercel.com/${teamInfo.slug}/~/usage` : "https://vercel.com/dashboard/usage", plan: teamInfo?.billing?.plan || null };
 
-  return { configured: true, usage, sites };
+  return { configured: true, usage, sites, archived, teamSlug: teamInfo?.slug || null };
 }
 
 // ---------- Supabase ----------
 async function supabase() {
   const token = env.SUPABASE_TOKEN;
-  if (!token) return { configured: false, projects: [] };
+  if (!token) return { configured: false, projects: [], archived: [], users: [], orgSlug: null };
   const base = "https://api.supabase.com/v1";
   const projects = (await safe("supabase projects", () => api(`${base}/projects`, { token }), [])) || [];
   const out = [];
+  const archived = [];
+  const users = [];
+  const orgSlug = projects[0] ? projects[0].organization_slug || projects[0].organization_id || null : null;
   for (const p of projects) {
     if (exclude.has(p.name.toLowerCase())) continue;
     const ref = p.ref || p.id;
+    if (isArchived(p.name)) {
+      // Listing data only: no database, health or auth queries.
+      archived.push({
+        name: p.name,
+        platform: "supabase",
+        url: `https://${ref}.supabase.co`,
+        dashboard: `https://supabase.com/dashboard/project/${ref}`,
+        deleteUrl: `https://supabase.com/dashboard/project/${ref}/settings/general`,
+        lastDeployAt: null,
+        status: p.status,
+      });
+      continue;
+    }
     const active = p.status === "ACTIVE_HEALTHY";
     let dbBytes = null;
     let health = null;
@@ -257,6 +336,10 @@ async function supabase() {
         api(`${base}/projects/${ref}/database/query/read-only`, { token, method: "POST", body: { query: "select pg_catalog.pg_database_size(pg_catalog.current_database())::bigint as bytes" } })
       );
       dbBytes = rows?.[0]?.bytes != null ? Number(rows[0].bytes) : null;
+      const u = await safe(`supabase users ${p.name}`, () =>
+        api(`${base}/projects/${ref}/database/query/read-only`, { token, method: "POST", body: { query: "select count(*)::int as users, max(last_sign_in_at) as last_sign_in, max(created_at) as last_signup from auth.users" } })
+      );
+      if (u?.[0]) users.push({ ref, name: p.name, users: Number(u[0].users ?? 0), lastSignIn: u[0].last_sign_in ?? null, lastSignup: u[0].last_signup ?? null });
       const h = await safe(`supabase health ${p.name}`, () => api(`${base}/projects/${ref}/health?services=db,auth,rest,storage`, { token }));
       if (Array.isArray(h)) health = Object.fromEntries(h.map((s) => [s.name, s.healthy ? "healthy" : s.status || "unhealthy"]));
     }
@@ -274,7 +357,8 @@ async function supabase() {
       usageDashboard: `https://supabase.com/dashboard/org/${p.organization_slug || p.organization_id}/usage`,
     });
   }
-  return { configured: true, projects: out, activeLimit: limits.supabaseActiveProjects ?? null };
+  // The active-project meter counts every ACTIVE project (archived ones are inactive anyway).
+  return { configured: true, projects: out, activeLimit: limits.supabaseActiveProjects ?? null, archived, users, orgSlug };
 }
 
 // ---------- GitHub repos (activity) ----------
@@ -289,18 +373,94 @@ async function github() {
   return {
     configured: true,
     repos: repos
-      .filter((r) => !r.fork && !r.archived)
-      .map((r) => ({ name: r.name, url: r.html_url, private: r.private, pushedAt: r.pushed_at, homepage: r.homepage || null, language: r.language })),
+      .filter((r) => !r.fork)
+      .map((r) => ({
+        name: r.name,
+        url: r.html_url,
+        private: r.private,
+        archived: Boolean(r.archived) || isArchived(r.name),
+        pushedAt: r.pushed_at,
+        homepage: r.homepage || null,
+        language: r.language,
+        stars: r.stargazers_count ?? 0,
+        forks: r.forks_count ?? 0,
+        watchers: r.subscribers_count ?? r.watchers_count ?? 0,
+        openIssues: r.open_issues_count ?? 0,
+        description: r.description || null,
+        createdAt: r.created_at || null,
+        sizeKb: r.size ?? null,
+        defaultBranch: r.default_branch || null,
+        topics: r.topics || [],
+      })),
   };
+}
+
+// ---------- GitHub traffic (needs a token with Administration: Read-only) ----------
+async function githubTraffic(repos) {
+  if (!env.GH_REPOS_TOKEN) {
+    return {
+      traffic: { configured: false, note: "Add a GH_REPOS_TOKEN secret (fine-grained, All repositories, Administration: Read-only) to see views, clones and referrers." },
+      daily: {},
+    };
+  }
+  const token = env.GH_REPOS_TOKEN;
+  const owner = config.githubOwner;
+  const list = repos.filter((r) => !r.archived).slice(0, 40);
+  let denied = false;
+  const get = async (name, kind) => {
+    if (denied) return null;
+    try {
+      return await api(`https://api.github.com/repos/${owner}/${name}/traffic/${kind}`, { token, headers: { Accept: "application/vnd.github+json" } });
+    } catch (e) {
+      if (e.message === "HTTP 403") denied = true;
+      else errors.push(`github traffic ${name} ${kind}: ${e.message}`);
+      return null;
+    }
+  };
+  const results = new Array(list.length);
+  await pool(list, 4, async (r) => {
+    const views = await get(r.name, "views");
+    const clones = await get(r.name, "clones");
+    const referrers = await get(r.name, "popular/referrers");
+    const paths = await get(r.name, "popular/paths");
+    results[list.indexOf(r)] = { name: r.name, views, clones, referrers, paths };
+  });
+  const daily = {};
+  const outRepos = [];
+  for (const x of results) {
+    if (!x || !(x.views || x.clones || x.referrers || x.paths)) continue;
+    const days = {};
+    const put = (arr, i) => {
+      for (const d of Array.isArray(arr) ? arr : []) {
+        const date = String(d.timestamp).slice(0, 10);
+        days[date] = days[date] || {};
+        days[date][i] = [d.count ?? 0, d.uniques ?? 0];
+      }
+    };
+    put(x.views?.views, "v");
+    put(x.clones?.clones, "c");
+    daily[x.name] = days;
+    outRepos.push({
+      name: x.name,
+      views: { count: x.views?.count ?? 0, uniques: x.views?.uniques ?? 0 },
+      clones: { count: x.clones?.count ?? 0, uniques: x.clones?.uniques ?? 0 },
+      referrers: (Array.isArray(x.referrers) ? x.referrers : []).slice(0, 5).map((e) => ({ referrer: e.referrer, count: e.count, uniques: e.uniques })),
+      paths: (Array.isArray(x.paths) ? x.paths : []).slice(0, 5).map((e) => ({ path: e.path, title: e.title, count: e.count, uniques: e.uniques })),
+    });
+  }
+  const traffic = { configured: true, repos: outRepos };
+  if (denied) traffic.note = "token lacks Administration: Read-only";
+  return { traffic, daily };
 }
 
 // ---------- Run ----------
 const [nl, vc, sb, gh] = await Promise.all([
-  safe("Netlify collection", netlify, { configured: Boolean(env.NETLIFY_TOKEN), sites: [], usage: [] }),
-  safe("Vercel collection", vercel, { configured: Boolean(env.VERCEL_TOKEN), sites: [], usage: null }),
-  safe("Supabase collection", supabase, { configured: Boolean(env.SUPABASE_TOKEN), projects: [] }),
+  safe("Netlify collection", netlify, { configured: Boolean(env.NETLIFY_TOKEN), sites: [], usage: [], archived: [], forms: [], teamSlug: null }),
+  safe("Vercel collection", vercel, { configured: Boolean(env.VERCEL_TOKEN), sites: [], usage: null, archived: [], teamSlug: null }),
+  safe("Supabase collection", supabase, { configured: Boolean(env.SUPABASE_TOKEN), projects: [], archived: [], users: [], orgSlug: null }),
   safe("GitHub collection", github, { configured: true, repos: [] }),
 ]);
+const ghT = await safe("GitHub traffic", () => githubTraffic(gh.repos), { traffic: { configured: Boolean(env.GH_REPOS_TOKEN), repos: [] }, daily: {} });
 
 const targets = [
   ...nl.sites.filter((s) => s.url && s.deploy.state !== "none"),
@@ -349,13 +509,32 @@ history.usage.push({
 });
 history.usage = history.usage.filter((r) => new Date(r.t).getTime() >= cutoff);
 
+// GitHub traffic history: daily [views, viewUniques, clones, cloneUniques], kept 365 days
+// so it outlives GitHub's 14-day window. Newer values overwrite the same date.
+history.ghTraffic = history.ghTraffic || {};
+for (const [repo, days] of Object.entries(ghT.daily)) {
+  const store = (history.ghTraffic[repo] = history.ghTraffic[repo] || {});
+  for (const [date, parts] of Object.entries(days)) {
+    const cur = store[date] ? [...store[date]] : [0, 0, 0, 0];
+    if (parts.v) [cur[0], cur[1]] = parts.v;
+    if (parts.c) [cur[2], cur[3]] = parts.c;
+    store[date] = cur;
+  }
+}
+const ghCutoff = new Date(now.getTime() - 365 * 86400000).toISOString().slice(0, 10);
+for (const [repo, store] of Object.entries(history.ghTraffic)) {
+  for (const date of Object.keys(store)) if (date < ghCutoff) delete store[date];
+  if (!Object.keys(store).length) delete history.ghTraffic[repo];
+}
+
+const { archived: sbArchived = [], users: sbUsers = [], orgSlug: sbOrg = null, ...sbPublic } = sb;
 const latest = {
   title: config.title || "Project Pulse",
   generatedAt: now.toISOString(),
   intervalMinutes: Number(env.PULSE_INTERVAL_MINUTES || 60),
   netlify: { configured: nl.configured, usage: nl.usage },
   vercel: { configured: vc.configured, usage: vc.usage },
-  supabase: sb,
+  supabase: sbPublic,
   github: gh,
   sites: [
     ...targets.map((t) => ({ ...t, check: checks[t.id] })),
@@ -364,6 +543,15 @@ const latest = {
       deploy: { state: p.status.toLowerCase(), at: null }, region: p.region, dashboard: p.dashboard, check: checks[p.id],
     })),
   ],
+  archived: [...nl.archived, ...vc.archived, ...sbArchived],
+  config: { groups: config.groups || {}, links: config.links || [] },
+  accounts: {
+    netlify: nl.teamSlug ? `https://app.netlify.com/teams/${nl.teamSlug}/projects` : null,
+    vercel: vc.configured ? (vc.teamSlug ? `https://vercel.com/${vc.teamSlug}` : "https://vercel.com/dashboard") : null,
+    supabase: sbOrg ? `https://supabase.com/dashboard/org/${sbOrg}` : null,
+    github: config.githubOwner ? `https://github.com/${config.githubOwner}` : null,
+  },
+  traffic: { github: ghT.traffic, netlifyForms: nl.forms, supabaseUsers: sbUsers },
   errors,
 };
 
