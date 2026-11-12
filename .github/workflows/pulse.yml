@@ -2,7 +2,9 @@ name: Pulse
 
 on:
   schedule:
-    - cron: "17 */3 * * *" # every three hours; GitHub may delay scheduled runs
+    # GitHub drops some scheduled runs, so try hourly; the gate job skips the
+    # run unless the last published refresh is older than ~2h45m.
+    - cron: "17 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -17,7 +19,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      run: ${{ steps.age.outputs.run }}
+    steps:
+      - id: age
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          last=$(gh api "repos/${{ github.repository }}/commits/gh-pages" --jq .commit.committer.date 2>/dev/null || echo "")
+          if [ -z "$last" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          age=$(( $(date -u +%s) - $(date -u -d "$last" +%s) ))
+          echo "Last refresh $last (${age}s ago)"
+          if [ "$age" -ge 9900 ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+
   collect:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
