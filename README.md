@@ -69,3 +69,18 @@ Run `node --test tests/*.test.mjs` before release. The tests use fake provider r
 Use dedicated provider tokens for scheduled runs; a Vercel CLI OAuth access token expires and is unsuitable for GitHub secrets. Supabase requires project visibility/health and Database Read access; the collector uses the read-only query endpoint. Keep token master copies in your secret manager, not this repository.
 
 The uptime percentage is the fraction of successful recorded checks, not continuous availability. Unknown intervals are not evidence of uptime. A 401/403 is classified as protected, which does not prove the app works after sign-in. Plan quotas are configured defaults unless returned by the provider; check the linked billing dashboard before making cost decisions.
+
+## Reliable refresh with Cloudflare (recommended)
+
+GitHub starts only a few scheduled runs a day on small repos. A free Cloudflare cron Worker (`cloudflare/pulse-cron/worker.js`) starts the Pulse workflow every 3 hours instead. It only calls GitHub and uses none of your Netlify, Vercel or Supabase usage.
+
+1. **Create the token.** Go to GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token.
+   - Repository access: *Only select repositories* → `project-pulse`
+   - Permissions: *Actions → Read and write* (Metadata read-only is added automatically)
+   - Expiration: up to 1 year. When it expires, refreshes fall back to GitHub's own schedule until you replace it.
+2. **Create the Worker.** In Cloudflare, go to Workers & Pages → Create → Create Worker. Name it `pulse-cron` → Deploy → Edit code. Replace the code with `cloudflare/pulse-cron/worker.js` → Deploy.
+3. **Add the token.** In the Worker, go to Settings → Variables and Secrets → Add → type *Secret*, name `GITHUB_TOKEN`, and paste the token as the value.
+4. **Schedule it.** In the Worker, go to Settings → Triggers → Cron Triggers → Add → `17 */3 * * *`.
+5. **Test it.** In the cron trigger's menu, choose *Test*, or wait for the next run. A new "Pulse" run started by `workflow_dispatch` should appear in GitHub Actions.
+
+GitHub's own schedule stays as a backup. Its gate skips any run that comes within about 2h45m of the last refresh, so you won't get double refreshes.

@@ -1,0 +1,8 @@
+# Optional: only needed if you deploy with the wrangler CLI instead of the dashboard.
+name = "pulse-cron"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = false
+
+[triggers]
+crons = ["17 */3 * * *"]
