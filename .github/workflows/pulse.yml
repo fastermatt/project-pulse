@@ -2,9 +2,10 @@ name: Pulse
 
 on:
   schedule:
-    # GitHub drops some scheduled runs, so try hourly; the gate job skips the
-    # run unless the last published refresh is older than ~2h45m.
-    - cron: "17 * * * *"
+    # GitHub starts only a fraction of scheduled runs (about 3 a day from an
+    # hourly schedule), so offer four slots an hour. The gate job skips the run
+    # unless the last published refresh is older than ~2h45m, keeping a ~3h cadence.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
